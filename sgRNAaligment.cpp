@@ -69,6 +69,28 @@ reverse_complement(const string seq,
   }
 }
 
+bool wildcard_seq_match(const char *first_seq,
+                        const char *second_seq){
+  if((*first == '\0' && *second != '\0')
+     || (*first != '\0' && second == '\0')){
+    throw SMITHLABException("length of strings don't match");
+  })
+  // reach eos, done
+  if(*first == '\0' && *second == '\0'){
+    return true;
+  }
+  // match
+  else if (*first == *second){
+    return wildcard_seq_match(first + 1, second + 1);
+  }
+  // wildcard
+  else if (*first == 'N' || *second == 'N'){
+    return wildcard_seq_match(first + 1, second + 1);
+  }0
+  // else no match
+  return false;
+}
+
 
 
 size_t
@@ -82,31 +104,41 @@ propose_sgRNAs(const bool VERBOSE,
   string rev_PAM;
   reverse_complement(region_seq, region_seq_rev_comp);
   reverse_complement(PAM, rev_PAM);
+  const size_t PAM_len = PAM.size();
   
+  // test for wildcards
   size_t first_wildcard_pos = PAM.find_first_not_of("ACGT");
-  if(first_wildcard_pos != string::npos){
+  if(first_wildcard_pos == string::npos){
+    // no wildcards, just do simple matching
+    for(size_t i = len_sgRNA; i < region_seq.size() - PAM_len; i++){
+      string test_seq = region_seq.substr(i, PAM_len);
+      if(test_seq == PAM){
+        possible_sgRNAs.push_back(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len));
+      }
+      test_seq = region_seq_rev_comp.substr(i, PAM_len);
+      if(test_seq == rev_PAM){
+        possible_sgRNAs.push_back(region_seq_rev_comp(i - len_sgRNA, len_sgRNA + PAM_len));
+      }
+    }
+  }
+  else{
     size_t last_wildcard_pos = PAM.find_last_not_of("ACGT");
+    // test for more than one wildcard
     if(first_wildcard_pos != last_wildcard_pos){
       throw SMITHLABException("more than one wildcard found in PAM");
     }
     
-   
-    
-  }
-  else{
-    // no wildcards
-    for(size_t i = len_sgRNA; i < region_seq.size() - PAM.size(); i++){
-      string test_seq = region_seq.substr(i, 3);
-      if(test_seq == PAM){
-        possible_sgRNAs.push_back(region_seq.substr(i - len_sgRNA, 23));
+    for(size_t i = len_sgRNA; i < region_seq.size() - PAM_len; i++){
+      string test_seq = region_substr(i, PAM_len);
+      if(match(test_seq, PAM)){
+        possible_sgRNAs.push_back(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len));
       }
-      test_seq = region_seq_rev_comp.substr(i, 3);
-      if(test_seq == rev_PAM){
-        possible_sgRNAs.push_back(region_seq_rev_comp(i - len_sgRNA, 23));
+      test_seq = region_seq_rev_comp.substr(i, PAM_len);
+      if(match(test_seq, rev_PAM)){
+        possible_sgRNAs.push_back(region_seq_rev_comp(i - len_sgRNA, len_sgRNA + PAM_len));
       }
     }
-
-  
+  }
 }
 
 int
