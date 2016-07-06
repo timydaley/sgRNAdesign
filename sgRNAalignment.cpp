@@ -110,7 +110,7 @@ reverse_complement(const string seq,
   rev_comp.clear();
   rev_comp.resize(seq.size());
   for(size_t i = 0; i < seq.size(); i++){
-    rev_comp[rev_comp.size() - i] = complement(seq[i]);
+    rev_comp[seq.size() - 1  - i] = complement(seq[i]);
   }
 }
 
@@ -155,6 +155,9 @@ propose_sgRNAs(const bool VERBOSE,
   // test for wildcards
   size_t first_wildcard_pos = PAM.find_first_not_of("ACGT");
   if(first_wildcard_pos == std::string::npos){
+    if(VERBOSE){
+      cerr << "no wildcard detected" << endl;
+    }
     // no wildcards, just do simple matching
     for(size_t i = len_sgRNA; i < region_seq.size() - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
@@ -163,11 +166,14 @@ propose_sgRNAs(const bool VERBOSE,
       }
       test_seq = region_seq_rev_comp.substr(i, PAM_len);
       if(test_seq == rev_PAM){
-        possible_sgRNAs.push_back(region_seq_rev_comp.substr(i - len_sgRNA, len_sgRNA + PAM_len));
+        possible_sgRNAs.push_back(region_seq_rev_comp.substr(i, len_sgRNA + PAM_len));
       }
     }
   }
   else{
+    if(VERBOSE){
+      cerr << "wildcard detected" << endl;
+    }
     size_t last_wildcard_pos = PAM.find_last_not_of("ACGT");
     // test for more than one wildcard
     if(first_wildcard_pos != last_wildcard_pos){
@@ -179,9 +185,11 @@ propose_sgRNAs(const bool VERBOSE,
       if(wildcard_seq_match(test_seq.c_str(), PAM.c_str())){
         possible_sgRNAs.push_back(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len));
       }
-      test_seq = region_seq_rev_comp.substr(i, PAM_len);
+    }
+    for(size_t i = 0; i < region_seq_rev_comp.size() - len_sgRNA - PAM_len; i++){
+      string test_seq = region_seq_rev_comp.substr(i, PAM_len);
       if(wildcard_seq_match(test_seq.c_str(), rev_PAM.c_str())){
-        possible_sgRNAs.push_back(region_seq_rev_comp.substr(i - len_sgRNA, len_sgRNA + PAM_len));
+        possible_sgRNAs.push_back(region_seq_rev_comp.substr(i, len_sgRNA + PAM_len));
       }
     }
   }
@@ -219,7 +227,7 @@ main(const int argc, const char **argv) {
                       "regions to search in fasta format",
                       true, input_file_name);
     opt_parse.add_opt("genome", 'g', "genome file in fasta format",
-                      true, genome_file_name);
+                      false, genome_file_name);
     opt_parse.add_opt("VERBOSE", 'V', "verbose mode",
                       false, VERBOSE);
     
@@ -240,9 +248,30 @@ main(const int argc, const char **argv) {
     }
     /**********************************************************************/
     
+    if(VERBOSE){
+      cerr << "PAM = " << PAM_seq << endl;
+    }
     vector<string> seqs, names;
-    read_fasta(input_file_name, seqs, names);
+    size_t n_seqs = read_fasta(input_file_name, seqs, names);
     
+    if(VERBOSE){
+      cerr << "sequences read in: " << n_seqs << endl;
+  
+      for(size_t i = 0; i < min(seqs.size(), names.size()); i++){
+        cerr << names[i] << endl;
+        cerr << seqs[i] << endl;
+      }
+    }
+    
+    vector<string> possible_sgRNAs;
+    propose_sgRNAs(VERBOSE, PAM_seq, seqs[0], len_sgRNA, possible_sgRNAs);
+    
+    if(VERBOSE){
+      cerr << "proposed sgRNAs:" << endl;
+      for(size_t i = 0; i < possible_sgRNAs.size(); i++){
+        cerr << possible_sgRNAs[i] << endl;
+      }
+    }
 
     
 
