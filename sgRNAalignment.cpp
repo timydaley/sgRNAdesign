@@ -50,6 +50,53 @@ using std::max;
 using std::cerr;
 using std::tr1::unordered_map;
 
+char
+complement(char n){
+  switch(n)
+  {
+    case 'A':
+      return 'T';
+    case 'T':
+      return 'A';
+    case 'G':
+      return 'C';
+    case 'C':
+      return 'G';
+    case 'N':
+      return 'N';
+  }
+  assert(false);
+  return ' ';
+}
+
+string
+reverse_complement(const string seq){
+  string rev_comp;
+  rev_comp.resize(seq.size());
+  for(size_t i = 0; i < seq.size(); i++){
+    rev_comp[seq.size() - 1  - i] = complement(seq[i]);
+  }
+  return rev_comp;
+}
+
+struct sgRNA {
+  sgRNA () {}
+  sgRNA(const string s, const bool rc) {seq = s; rev_comp = rc;}
+  
+  string seq;
+  bool rev_comp;
+};
+
+std::ostream&
+operator<<(std::ostream& the_stream, const sgRNA &sgrna){
+//  if(sgrna.rev_comp)
+//    the_stream << reverse_complement(sgrna.seq);
+//  else
+    the_stream << sgrna.seq;
+  
+  return the_stream;
+}
+
 size_t
 read_fasta(const string &input_file_name,
            vector<string> &seqs,
@@ -84,35 +131,7 @@ read_fasta(const string &input_file_name,
   
   return n_regions;
 }
-  
-char
-complement(char n){
-  switch(n)
-  {
-    case 'A':
-      return 'T';
-    case 'T':
-      return 'A';
-    case 'G':
-      return 'C';
-    case 'C':
-      return 'G';
-    case 'N':
-      return 'N';
-  }
-  assert(false);
-  return ' ';
-}
 
-void
-reverse_complement(const string seq,
-                   string &rev_comp){
-  rev_comp.clear();
-  rev_comp.resize(seq.size());
-  for(size_t i = 0; i < seq.size(); i++){
-    rev_comp[seq.size() - 1  - i] = complement(seq[i]);
-  }
-}
 
 bool
 wildcard_seq_match(const char *first_seq,
@@ -144,12 +163,11 @@ propose_sgRNAs(const bool VERBOSE,
                const string PAM,
                const string region_seq,
                const size_t len_sgRNA,
-               vector<string> &possible_sgRNAs){
+               vector<sgRNA> &possible_sgRNAs){
 
-  string region_seq_rev_comp;
-  string rev_PAM;
-  reverse_complement(region_seq, region_seq_rev_comp);
-  reverse_complement(PAM, rev_PAM);
+  string region_seq_rev_comp = reverse_complement(region_seq);
+  string rev_PAM = reverse_complement(PAM);
+
   const size_t PAM_len = PAM.size();
   
   // test for wildcards
@@ -162,11 +180,11 @@ propose_sgRNAs(const bool VERBOSE,
     for(size_t i = len_sgRNA; i < region_seq.size() - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq == PAM){
-        possible_sgRNAs.push_back(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len));
+        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len), false));
       }
       test_seq = region_seq_rev_comp.substr(i, PAM_len);
       if(test_seq == rev_PAM){
-        possible_sgRNAs.push_back(region_seq_rev_comp.substr(i, len_sgRNA + PAM_len));
+        possible_sgRNAs.push_back(sgRNA(region_seq_rev_comp.substr(i, len_sgRNA + PAM_len), true));
       }
     }
   }
@@ -183,17 +201,35 @@ propose_sgRNAs(const bool VERBOSE,
     for(size_t i = len_sgRNA; i < region_seq.size() - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
       if(wildcard_seq_match(test_seq.c_str(), PAM.c_str())){
-        possible_sgRNAs.push_back(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len));
+        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len), false));
       }
     }
     for(size_t i = 0; i < region_seq_rev_comp.size() - len_sgRNA - PAM_len; i++){
       string test_seq = region_seq_rev_comp.substr(i, PAM_len);
       if(wildcard_seq_match(test_seq.c_str(), rev_PAM.c_str())){
-        possible_sgRNAs.push_back(region_seq_rev_comp.substr(i, len_sgRNA + PAM_len));
+        possible_sgRNAs.push_back(sgRNA(region_seq_rev_comp.substr(i, len_sgRNA + PAM_len), true));
       }
     }
   }
 }
+
+/*
+void
+hash_seeds(const bool VERBOSE,
+           const size_t seed_length,
+           const string PAM,
+           const vector<string> &possible_sgRNAs,
+           unordered_map<string, string> &seed_hash){
+  string rev_PAM;
+  reverse_complement(PAM, rev_PAM);
+  
+  for(size_t i = 0; i < possible_sgRNAs.size(); i++){
+    
+  }
+}
+ */
+
+
 
 int
 main(const int argc, const char **argv) {
@@ -202,6 +238,7 @@ main(const int argc, const char **argv) {
     // option variables
     size_t edit_dist = 2;
     size_t len_sgRNA = 20;
+    size_t seed_length = 5;
     string input_file_name;
     string genome_file_name;
     string output_file_name;
@@ -223,6 +260,9 @@ main(const int argc, const char **argv) {
     opt_parse.add_opt("length", 'l', "length of sgRNAs (default: "
                       + toa(len_sgRNA) + ")",
                       false, len_sgRNA);
+    opt_parse.add_opt("seed_length", 's', "length of seed region distal to PAM"
+                      " (default: " + toa(seed_length) + ")",
+                      false, seed_length);
     opt_parse.add_opt("input", 'i', "input file of the DNA sequence of the "
                       "regions to search in fasta format",
                       true, input_file_name);
@@ -263,9 +303,10 @@ main(const int argc, const char **argv) {
       }
     }
     
-    vector<string> possible_sgRNAs;
+    vector<sgRNA> possible_sgRNAs;
     propose_sgRNAs(VERBOSE, PAM_seq, seqs[0], len_sgRNA, possible_sgRNAs);
     
+    cerr << "# possible sgRNAs = " << possible_sgRNAs.size() << endl;
     if(VERBOSE){
       cerr << "proposed sgRNAs:" << endl;
       for(size_t i = 0; i < possible_sgRNAs.size(); i++){
