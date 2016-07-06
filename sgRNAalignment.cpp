@@ -213,21 +213,33 @@ propose_sgRNAs(const bool VERBOSE,
   }
 }
 
-/*
+
 void
 hash_seeds(const bool VERBOSE,
            const size_t seed_length,
            const string PAM,
-           const vector<string> &possible_sgRNAs,
-           unordered_map<string, string> &seed_hash){
-  string rev_PAM;
-  reverse_complement(PAM, rev_PAM);
+           const vector<sgRNA> &possible_sgRNAs,
+           unordered_map<string, sgRNA> &seed_hash){
+  string rev_PAM = reverse_complement(PAM);
   
   for(size_t i = 0; i < possible_sgRNAs.size(); i++){
+    string seed_seq;
+    if(possible_sgRNAs[i].rev_comp){
+      // working with reverse complement
+      seed_seq = possible_sgRNAs[i].seq.substr(3, seed_length);
+    }
+    else{
+      seed_seq = possible_sgRNAs[i].seq.substr(possible_sgRNAs[i].seq.size() - 1
+                                           - PAM.size() - seed_length, seed_length);
+    }
     
+    if(VERBOSE)
+      cerr << seed_seq << endl;
+    
+    seed_hash[seed_seq] = possible_sgRNAs[i];
   }
 }
- */
+
 
 
 
@@ -304,7 +316,8 @@ main(const int argc, const char **argv) {
     }
     
     vector<sgRNA> possible_sgRNAs;
-    propose_sgRNAs(VERBOSE, PAM_seq, seqs[0], len_sgRNA, possible_sgRNAs);
+    for(size_t i = 0; i < seqs.size(); i++)
+      propose_sgRNAs(VERBOSE, PAM_seq, seqs[i], len_sgRNA, possible_sgRNAs);
     
     cerr << "# possible sgRNAs = " << possible_sgRNAs.size() << endl;
     if(VERBOSE){
@@ -313,6 +326,14 @@ main(const int argc, const char **argv) {
         cerr << possible_sgRNAs[i] << endl;
       }
     }
+    
+    unordered_map<string, sgRNA> seed_hash;
+    hash_seeds(VERBOSE, seed_length, PAM_seq, possible_sgRNAs, seed_hash);
+    if(VERBOSE){
+      cerr << "seed hash table size = " << seed_hash.size() << endl;
+    }
+    
+    // 
 
     
 
