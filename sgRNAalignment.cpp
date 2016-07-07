@@ -105,8 +105,8 @@ reverse_complement(const string seq){
 }
 
 int
-LevenshteinMetric(const string &s1,
-                  const string &s2){
+LevenshteinWildcardMetric(const string &s1,
+                          const string &s2){
   vector< vector<int> > dist(s1.size() + 1, vector<int>(s2.size() + 1));
   //initialization
   dist[0][0] = 0;
@@ -119,7 +119,11 @@ LevenshteinMetric(const string &s1,
   // now work
   for(size_t i = 1; i < dist.size(); i++){
     for(size_t j = 1; j < dist[0].size(); j++){
-      dist[i][j] = min(dist[i-1][j] + 1, min(dist[i][j-1] + 1, dist[i-1][j-1] + (s1[i-1] == s2[j-1] ? 0:1)));
+      dist[i][j] = min(dist[i-1][j] + 1,
+                       min(dist[i][j-1] + 1,
+                           dist[i-1][j-1] + ((s1[i-1] == s2[j-1]
+                                              || s1[i-1] == 'N'
+                                              || s2[j-1] == 'N') ? 0:1)));
     }
   }
   return dist[s1.size()][s2.size()];
@@ -312,10 +316,12 @@ update_seed_matches(const bool VERBOSE,
       return false;
     }
     else{
-      //do nothing
+      //string s1 = current_seq.substr(
+      return true;
     }
     
   }
+  return false;
 }
 
 
@@ -450,9 +456,9 @@ main(const int argc, const char **argv) {
                      */
     
     string s1("ACGTT");
-    string s2("ACTT");
-    cerr << "LevenshteinMetric" << endl;
-    cerr << LevenshteinMetric(s1, s2) << endl;
+    string s2("ACNTT");
+    cerr << "LevenshteinWildcardMetric" << endl;
+    cerr << LevenshteinWildcardMetric(s1, s2) << endl;
 
     
 
