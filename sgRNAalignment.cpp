@@ -104,12 +104,39 @@ reverse_complement(const string seq){
   return rev_comp;
 }
 
+int
+LevenshteinMetric(const string &s1,
+                  const string &s2){
+  vector< vector<int> > dist(s1.size() + 1, vector<int>(s2.size() + 1));
+  //initialization
+  dist[0][0] = 0;
+  for(size_t i = 1; i < dist.size(); i++){
+    dist[i][0] = dist[i-1][0] + 1;
+  }
+  for(size_t j = 1; j < dist[0].size(); j++){
+    dist[0][j] = dist[0][j-1] + 1;
+  }
+  // now work
+  for(size_t i = 1; i < dist.size(); i++){
+    for(size_t j = 1; j < dist[0].size(); j++){
+      dist[i][j] = min(dist[i-1][j] + 1, min(dist[i][j-1] + 1, dist[i-1][j-1] + (s1[i-1] == s2[j-1] ? 0:1)));
+    }
+  }
+  return dist[s1.size()][s2.size()];
+}
+
+struct matched_alignment {
+  string seq;
+  int score;
+};
+
 struct sgRNA {
   sgRNA () {}
   sgRNA(const string s, const bool rc) {seq = s; rev_comp = rc;}
   
   string seq;
   bool rev_comp;
+  vector<matched_alignment> matches;
 };
 
 std::ostream&
@@ -244,11 +271,11 @@ propose_sgRNAs(const bool VERBOSE,
 
 
 void
-hash_seeds(const bool VERBOSE,
-           const size_t seed_length,
-           const string PAM,
-           const vector<sgRNA> &possible_sgRNAs,
-           unordered_map<string, sgRNA> &seed_hash){
+build_seed_hash(const bool VERBOSE,
+                const size_t seed_length,
+                const string PAM,
+                const vector<sgRNA> &possible_sgRNAs,
+                unordered_map<string, sgRNA> &seed_hash){
   string rev_PAM = reverse_complement(PAM);
   
   for(size_t i = 0; i < possible_sgRNAs.size(); i++){
@@ -258,8 +285,9 @@ hash_seeds(const bool VERBOSE,
       seed_seq = possible_sgRNAs[i].seq.substr(3, seed_length);
     }
     else{
-      seed_seq = possible_sgRNAs[i].seq.substr(possible_sgRNAs[i].seq.size() - 1
-                                           - PAM.size() - seed_length, seed_length);
+      seed_seq = possible_sgRNAs[i].seq.substr(possible_sgRNAs[i].seq.size()
+                                               - 1 - PAM.size() - seed_length,
+                                               seed_length);
     }
     
     if(VERBOSE)
@@ -269,6 +297,26 @@ hash_seeds(const bool VERBOSE,
   }
 }
 
+bool
+update_seed_matches(const bool VERBOSE,
+                    const size_t iter,
+                    const size_t seed_length,
+                    const string current_seq,
+                    unordered_map<string, sgRNA> &seed_hash){
+  string test_seq = current_seq.substr(iter, seed_length);
+  // no N's, proceed
+  if(test_seq.find_first_not_of("N") != std::string::npos){
+    // find seed in hash
+    unordered_map<string, sgRNA>::const_iterator seq_in_seeds = seed_hash.find(test_seq);
+    if(seq_in_seeds == seed_hash.end()){
+      return false;
+    }
+    else{
+      //do nothing
+    }
+    
+  }
+}
 
 
 
@@ -331,6 +379,7 @@ main(const int argc, const char **argv) {
     }
     /**********************************************************************/
     
+    const size_t PAM_len = PAM_seq.size();
     if(VERBOSE){
       cerr << "PAM = " << PAM_seq << endl;
     }
@@ -359,7 +408,7 @@ main(const int argc, const char **argv) {
     }
     
     unordered_map<string, sgRNA> seed_hash;
-    hash_seeds(VERBOSE, seed_length, PAM_seq, possible_sgRNAs, seed_hash);
+    build_seed_hash(VERBOSE, seed_length, PAM_seq, possible_sgRNAs, seed_hash);
     if(VERBOSE){
       cerr << "seed hash table size = " << seed_hash.size() << endl;
     }
@@ -367,20 +416,43 @@ main(const int argc, const char **argv) {
     // read in fasta file iteratively
     string current_chrom;
     string current_seq;
-    std::ifstream in(input_file_name.c_str());
+    std::ifstream in(genome_file_name.c_str());
     string buffer;
+    size_t iter = 0;/*
     while(getline(in, buffer)){
       std::istringstream is(buffer);
       if(buffer[0] == '>'){
         // new chromosome, return name
         current_chrom.assign(buffer.substr(1, buffer.length() - 1));
+        if(current_seq.size() > seed_length){
+          while(iter < current_seq.size() - seed_length){
+            
+          }
+        }
       }
       else{
         std::transform(buffer.begin(), buffer.end(), buffer.begin(), to_upper);
         current_seq.append(buffer);
+        if(current_seq.size() > len_sgRNA
         // do stuff
+        // hash current seq against proposed sgRNAs
+        for(std::string::iterator iter = )
+        
+        // erase stuff
+        if(current_seq.size() > buffer.size() + len_sgRNA + PAM_len){
+          current_seq.erase(0, buffer.size());
+        }
+        if(VERBOSE){
+          cerr << current_seq << endl;
+        }
       }
     }
+                     */
+    
+    string s1("ACGTT");
+    string s2("ACTT");
+    cerr << "LevenshteinMetric" << endl;
+    cerr << LevenshteinMetric(s1, s2) << endl;
 
     
 
