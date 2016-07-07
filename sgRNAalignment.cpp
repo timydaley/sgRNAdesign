@@ -33,6 +33,8 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <algorithm>
+
 
 
 #include <OptionParser.hpp>
@@ -52,8 +54,7 @@ using std::tr1::unordered_map;
 
 char
 complement(char n){
-  switch(n)
-  {
+  switch(n){
     case 'A':
       return 'T';
     case 'T':
@@ -67,6 +68,30 @@ complement(char n){
   }
   assert(false);
   return ' ';
+}
+
+char
+to_upper(char n){
+  switch(n){
+    case 'a':
+      return 'A';
+    case 'c':
+      return 'C';
+    case 'g':
+      return 'G';
+    case 't':
+      return 'T';
+    case 'A':
+      return 'A';
+    case 'C':
+      return 'C';
+    case 'G':
+      return 'G';
+    case 'T':
+      return 'T';
+    default:
+      return 'N';
+  }
 }
 
 string
@@ -98,12 +123,12 @@ operator<<(std::ostream& the_stream, const sgRNA &sgrna){
 }
 
 size_t
-read_fasta(const string &input_file_name,
-           vector<string> &seqs,
-           vector<string> &names){
+read_fasta_batch(const string &input_file_name,
+                 vector<string> &seqs,
+                 vector<string> &names){
   std::ifstream in(input_file_name.c_str());
   if (!in) //if file doesn't open
-  throw SMITHLABException("could not open input file: " + input_file_name);
+    throw SMITHLABException("could not open input file: " + input_file_name);
   size_t n_regions = 0;
   size_t line_count = 0ul;
   string buffer;
@@ -131,6 +156,10 @@ read_fasta(const string &input_file_name,
   
   return n_regions;
 }
+
+
+
+
 
 
 bool
@@ -243,6 +272,8 @@ hash_seeds(const bool VERBOSE,
 
 
 
+
+
 int
 main(const int argc, const char **argv) {
   
@@ -279,7 +310,7 @@ main(const int argc, const char **argv) {
                       "regions to search in fasta format",
                       true, input_file_name);
     opt_parse.add_opt("genome", 'g', "genome file in fasta format",
-                      false, genome_file_name);
+                      true, genome_file_name);
     opt_parse.add_opt("VERBOSE", 'V', "verbose mode",
                       false, VERBOSE);
     
@@ -304,7 +335,7 @@ main(const int argc, const char **argv) {
       cerr << "PAM = " << PAM_seq << endl;
     }
     vector<string> seqs, names;
-    size_t n_seqs = read_fasta(input_file_name, seqs, names);
+    size_t n_seqs = read_fasta_batch(input_file_name, seqs, names);
     
     if(VERBOSE){
       cerr << "sequences read in: " << n_seqs << endl;
@@ -333,7 +364,23 @@ main(const int argc, const char **argv) {
       cerr << "seed hash table size = " << seed_hash.size() << endl;
     }
     
-    // 
+    // read in fasta file iteratively
+    string current_chrom;
+    string current_seq;
+    std::ifstream in(input_file_name.c_str());
+    string buffer;
+    while(getline(in, buffer)){
+      std::istringstream is(buffer);
+      if(buffer[0] == '>'){
+        // new chromosome, return name
+        current_chrom.assign(buffer.substr(1, buffer.length() - 1));
+      }
+      else{
+        std::transform(buffer.begin(), buffer.end(), buffer.begin(), to_upper);
+        current_seq.append(buffer);
+        // do stuff
+      }
+    }
 
     
 
