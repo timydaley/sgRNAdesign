@@ -129,6 +129,20 @@ LevenshteinWildcardMetric(const string &s1,
   return dist[s1.size()][s2.size()];
 }
 
+int
+MismatchWildcardMetric(const string &s1,
+                       const string &s2){
+  if(s1.size() != s2.size())
+    cerr << "Cannote determine mismatch distance of string of two different lengths" << endl;
+  assert(s1.size() == s2.size());
+  
+  int dist = 0;
+  for(size_t i = 0; i < s1.size(); i++)
+    dist += (s1[i-1] == s2[i-1] || s1[i-1] == 'N' || s2[i-1] == 'N') ? 0:1;
+  
+  return dist;
+}
+
 struct matched_alignment {
   string seq;
   int score;
