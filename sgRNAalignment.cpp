@@ -138,7 +138,7 @@ MismatchWildcardMetric(const string &s1,
   
   int dist = 0;
   for(size_t i = 0; i < s1.size(); i++)
-    dist += (s1[i-1] == s2[i-1] || s1[i-1] == 'N' || s2[i-1] == 'N') ? 0:1;
+    dist += (s1[i] == s2[i] || s1[i] == 'N' || s2[i] == 'N') ? 0:1;
   
   return dist;
 }
@@ -330,7 +330,8 @@ update_seed_matches(const bool VERBOSE,
       return false;
     }
     else{
-      //string s1 = current_seq.substr(
+      // string s1 = current_seq.substr(
+      // need to figure out what current_seq should be before continuing
       return true;
     }
     
@@ -438,7 +439,7 @@ main(const int argc, const char **argv) {
     string current_seq;
     std::ifstream in(genome_file_name.c_str());
     string buffer;
-    size_t iter = 0;/*
+    size_t iter = 0;
     while(getline(in, buffer)){
       std::istringstream is(buffer);
       if(buffer[0] == '>'){
@@ -467,12 +468,7 @@ main(const int argc, const char **argv) {
         }
       }
     }
-                     */
-    
-    string s1("ACGTT");
-    string s2("ACNTT");
-    cerr << "LevenshteinWildcardMetric" << endl;
-    cerr << LevenshteinWildcardMetric(s1, s2) << endl;
+           
 
     
 

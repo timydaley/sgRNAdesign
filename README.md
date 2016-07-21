@@ -26,9 +26,15 @@ Workflow:
 
 	1. Find cadidate sgRNAs using PAM (NGG for S. Pyongenes, but can theoretically be anything)
 
+	   a. Use PAM as anchor for sgRNAs
+
 	2. Construct a hash table of seed sequences to look for exact matches to the seed sequence
 
-	3. Hash genome 
+	3. Iteratively hash genome (no need to load the whole genome)
+
+	   a. Avoid unknown seqs (any base !in {ACGT}: don't test)
+
+	   b. 
 
 	4. Only one exact match (which should be the sgRNA in the genome): return sgRNA
 
