@@ -52,7 +52,7 @@ using std::max;
 using std::cerr;
 using std::tr1::unordered_map;
 
-char
+inline char
 complement(char n){
   switch(n){
     case 'A':
@@ -70,7 +70,7 @@ complement(char n){
   return ' ';
 }
 
-char
+inline char
 to_upper(char n){
   switch(n){
     case 'a':
@@ -92,6 +92,48 @@ to_upper(char n){
     default:
       return 'N';
   }
+}
+
+// from smithlab_utils.hpp (https://github.com/smithlabcode/smithlab_cpp)
+inline size_t
+base2int(char c) {
+  switch(c) {
+    case 'A' : return 0;
+    case 'C' : return 1;
+    case 'G' : return 2;
+    case 'T' : return 3;
+    case 'a' : return 0;
+    case 'c' : return 1;
+    case 'g' : return 2;
+    case 't' : return 3;
+    default  : return 4;
+  }
+}
+
+// convert whole string to integer value for Rabin-Karp
+inline size_t
+string2int(const string seq,
+           const size_t base){
+  // sum_{i = 0}^{|seq| - 1} seq[i]*base^i
+  size_t x = 0;
+  for(size_t i = 0; i < seq.size(); i++)
+    x += base2int(seq[i])*pow(base, i);
+  return x;
+}
+
+//
+inline size_t
+updateRabinKarp(const size_t prev_val,
+                const char start_char,
+                const char next_char,
+                const size_t base,
+                const size_t modulus,
+                const size_t precompute){
+  // next_val = (prev_val - (seq[0] * base^(seq.size() - 1))) * base + base2int(next_char) mod modulus
+  // precompute = base^(seq.size() - 1)
+  size_t next_val = (prev_val - seq[0]*precompute)*base + base2int(next_char);
+  next_val = next_val % modulus; // if modulus = max size_t, comment this out
+  return next_val;
 }
 
 string
@@ -153,6 +195,7 @@ struct sgRNA {
   sgRNA(const string s, const bool rc) {seq = s; rev_comp = rc;}
   
   string seq;
+  size_t key;
   bool rev_comp;
   vector<matched_alignment> matches;
 };
@@ -291,13 +334,15 @@ propose_sgRNAs(const bool VERBOSE,
 void
 build_seed_hash(const bool VERBOSE,
                 const size_t seed_length,
+                const size_t base,
                 const string PAM,
                 const vector<sgRNA> &possible_sgRNAs,
-                unordered_map<string, sgRNA> &seed_hash){
+                unordered_map<size_t, sgRNA> &seed_hash){
   string rev_PAM = reverse_complement(PAM);
   
   for(size_t i = 0; i < possible_sgRNAs.size(); i++){
     string seed_seq;
+    size_t key;
     if(possible_sgRNAs[i].rev_comp){
       // working with reverse complement
       seed_seq = possible_sgRNAs[i].seq.substr(3, seed_length);
@@ -307,11 +352,13 @@ build_seed_hash(const bool VERBOSE,
                                                - 1 - PAM.size() - seed_length,
                                                seed_length);
     }
+    key = string2int(seed_seq, base);
+    if(VERBOSE){
+      cerr << "seed = " << seed_seq << endl;
+      cerr << "key  = " << key << endl;
+    }
     
-    if(VERBOSE)
-      cerr << seed_seq << endl;
-    
-    seed_hash[seed_seq] = possible_sgRNAs[i];
+    seed_hash[key] = possible_sgRNAs[i];
   }
 }
 
