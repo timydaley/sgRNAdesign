@@ -402,7 +402,7 @@ main(const int argc, const char **argv) {
     // option variables
     size_t edit_dist = 2;
     size_t len_sgRNA = 20;
-    size_t seed_length = 5;
+    size_t seed_length = 8;
     string input_file_name;
     string genome_file_name;
     string output_file_name;
@@ -482,6 +482,7 @@ main(const int argc, const char **argv) {
     
     unordered_map<size_t, sgRNA> seed_hash;
     const size_t base = 5;
+    const size_t precompute = pow(base, seed_length);
     build_seed_hash(VERBOSE, seed_length, base, PAM_seq, possible_sgRNAs, seed_hash);
     if(VERBOSE){
       cerr << "seed hash table size = " << seed_hash.size() << endl;
@@ -489,21 +490,30 @@ main(const int argc, const char **argv) {
     
     vector<string> chroms;
     vector<string> chrom_names;
-    string current_chrom_seq;
-    string current_name;
     std::ifstream in(genome_file_name.c_str());
-    while(load_chrom(VERBOSE, in, current_chrom_seq, current_name)){
-      chroms.push_back(current_chrom_seq);
-      chrom_names.push_back(current_name);
-    }
-    
-    assert(chroms.size() == chrom_names.size());
+    read_fasta_batch(genome_file_name, chroms, chrom_names);
     if(VERBOSE){
       cerr << "name" << '\t' << "size" << endl;
       for(size_t i = 0; i < chroms.size(); i++)
         cerr << chrom_names[i] << '\t' << chroms[i].length() << endl;
     }
+    assert(chroms.size() == chrom_names.size());
 
+    // loop over chroms
+    for(size_t i = 0; i < chroms.size(); i++){
+      size_t iter = chroms[i].find_first_not_of("Nn");
+      string test_seq = chroms[i].substr(iter, iter + len_sgRNA + PAM_len);
+      size_t hash_val = string2int(test_seq, base);
+      cerr << hash_val << endl;
+      do{
+        updateRabinKarp(const size_t prev_val,
+                        const char start_char,
+                        const char next_char,
+                        const size_t base,
+                        const size_t modulus,
+                        const size_t precompute)
+      }while(iter < chroms[i].length() - len_sgRNA - PAM_len);
+    }
 
     
 
