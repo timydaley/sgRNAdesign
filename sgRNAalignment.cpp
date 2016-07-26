@@ -94,6 +94,7 @@ to_upper(char n){
   }
 }
 
+/*
 // from smithlab_utils.hpp (https://github.com/smithlabcode/smithlab_cpp)
 inline size_t
 base2int(char c) {
@@ -109,6 +110,7 @@ base2int(char c) {
     default  : return 4;
   }
 }
+ */
 
 // convert whole string to integer value for Rabin-Karp
 inline size_t
@@ -131,7 +133,7 @@ updateRabinKarp(const size_t prev_val,
                 const size_t precompute){
   // next_val = (prev_val - (seq[0] * base^(seq.size() - 1))) * base + base2int(next_char) mod modulus
   // precompute = base^(seq.size() - 1)
-  size_t next_val = (prev_val - seq[0]*precompute)*base + base2int(next_char);
+  size_t next_val = (prev_val - base2int(start_char)*precompute)*base + base2int(next_char);
   next_val = next_val % modulus; // if modulus = max size_t, comment this out
   return next_val;
 }
@@ -209,6 +211,7 @@ operator<<(std::ostream& the_stream, const sgRNA &sgrna){
   
   return the_stream;
 }
+
 
 size_t
 read_fasta_batch(const string &input_file_name,
@@ -357,35 +360,37 @@ build_seed_hash(const bool VERBOSE,
       cerr << "seed = " << seed_seq << endl;
       cerr << "key  = " << key << endl;
     }
-    
     seed_hash[key] = possible_sgRNAs[i];
   }
 }
 
+
+// return true if we encounter a new chromosome
+// else return false
 bool
-update_seed_matches(const bool VERBOSE,
-                    const size_t iter,
-                    const size_t seed_length,
-                    const string current_seq,
-                    unordered_map<string, sgRNA> &seed_hash){
-  string test_seq = current_seq.substr(iter, seed_length);
-  // no N's, proceed
-  if(test_seq.find_first_not_of("N") != std::string::npos){
-    // find seed in hash
-    unordered_map<string, sgRNA>::const_iterator seq_in_seeds = seed_hash.find(test_seq);
-    if(seq_in_seeds == seed_hash.end()){
-      return false;
-    }
-    else{
-      // string s1 = current_seq.substr(
-      // need to figure out what current_seq should be before continuing
+load_chrom(const bool VERBOSE,
+           std::ifstream &in,
+           string &chrom_seq,
+           string &next_chrom_name){
+  // read in fasta file iteratively
+  string buffer;
+  chrom_seq.clear();
+  next_chrom_name.clear();
+  while(getline(in, buffer)){
+    std::istringstream is(buffer);
+    if(buffer[0] == '>'){
+      // new chromosome, return name
+      next_chrom_name.assign(buffer.substr(1, buffer.length() - 1));
+      // break from while loop by returning
       return true;
     }
-    
+    else{
+      std::transform(buffer.begin(), buffer.end(), buffer.begin(), to_upper);
+      chrom_seq.append(buffer);
+    }
   }
   return false;
 }
-
 
 
 
@@ -475,47 +480,30 @@ main(const int argc, const char **argv) {
       }
     }
     
-    unordered_map<string, sgRNA> seed_hash;
-    build_seed_hash(VERBOSE, seed_length, PAM_seq, possible_sgRNAs, seed_hash);
+    unordered_map<size_t, sgRNA> seed_hash;
+    const size_t base = 5;
+    build_seed_hash(VERBOSE, seed_length, base, PAM_seq, possible_sgRNAs, seed_hash);
     if(VERBOSE){
       cerr << "seed hash table size = " << seed_hash.size() << endl;
     }
     
-    // read in fasta file iteratively
-    string current_chrom;
-    string current_seq;
+    vector<string> chroms;
+    vector<string> chrom_names;
+    string current_chrom_seq;
+    string current_name;
     std::ifstream in(genome_file_name.c_str());
-    string buffer;
-    size_t iter = 0;
-    while(getline(in, buffer)){
-      std::istringstream is(buffer);
-      if(buffer[0] == '>'){
-        // new chromosome, return name
-        current_chrom.assign(buffer.substr(1, buffer.length() - 1));
-        if(current_seq.size() > seed_length){
-          while(iter < current_seq.size() - seed_length){
-            
-          }
-        }
-      }
-      else{
-        std::transform(buffer.begin(), buffer.end(), buffer.begin(), to_upper);
-        current_seq.append(buffer);
-        if(current_seq.size() > len_sgRNA
-        // do stuff
-        // hash current seq against proposed sgRNAs
-        for(std::string::iterator iter = )
-        
-        // erase stuff
-        if(current_seq.size() > buffer.size() + len_sgRNA + PAM_len){
-          current_seq.erase(0, buffer.size());
-        }
-        if(VERBOSE){
-          cerr << current_seq << endl;
-        }
-      }
+    while(load_chrom(VERBOSE, in, current_chrom_seq, current_name)){
+      chroms.push_back(current_chrom_seq);
+      chrom_names.push_back(current_name);
     }
-           
+    
+    assert(chroms.size() == chrom_names.size());
+    if(VERBOSE){
+      cerr << "name" << '\t' << "size" << endl;
+      for(size_t i = 0; i < chroms.size(); i++)
+        cerr << chrom_names[i] << '\t' << chroms[i].length() << endl;
+    }
+
 
     
 

@@ -34,7 +34,7 @@ Workflow:
 
 	   a. Avoid unknown seqs (any base !in {ACGT}: don't test)
 
-	   b. 
+	   b. Use Rabin-Karp for iterative updating of hash key
 
 	4. Only one exact match (which should be the sgRNA in the genome): return sgRNA
 
