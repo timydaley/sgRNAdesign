@@ -453,6 +453,7 @@ main(const int argc, const char **argv) {
     /**********************************************************************/
     
     const size_t PAM_len = PAM_seq.size();
+    const string PAM_rev_comp = reverse_complement(PAM_seq);
     if(VERBOSE){
       cerr << "PAM = " << PAM_seq << endl;
     }
@@ -502,16 +503,30 @@ main(const int argc, const char **argv) {
     // loop over chroms
     for(size_t i = 0; i < chroms.size(); i++){
       size_t iter = chroms[i].find_first_not_of("Nn");
-      string test_seq = chroms[i].substr(iter, iter + len_sgRNA + PAM_len);
-      size_t hash_val = string2int(test_seq, base);
+      string test_seq = chroms[i].substr(iter, len_sgRNA);
+      size_t forward_hash_val = string2int(test_seq, base);
+      size_t rev_comp_hash_val = string2int(reverse_complement(test_seq), base);
       cerr << hash_val << endl;
+      cerr << rev_comp_hash_val << endl;
       do{
-        updateRabinKarp(const size_t prev_val,
-                        const char start_char,
-                        const char next_char,
-                        const size_t base,
-                        const size_t modulus,
-                        const size_t precompute)
+        // update hash vals for RabinKarp
+        forward_hash_val =
+          updateRabinKarp(forward_hash_val, chroms[iter + seed_length],
+                          chroms[iter + len_sgRNA], base, modulus, precompute);
+        rev_comp_hash_val =
+          updateRabinKarp(rev_comp_hash_val, complement(chroms[iter]),
+                          complement(chroms[iter + seed_length]),
+                          base, modulus, precompute);
+        if(MismatchWildcardMetric(chroms.substr(iter + len_sgRNA, PAM_len), PAM) == 0){
+          if(seed_hash.find(forward_hash_val) != seed_hash.end()){
+            // hash matches seed, need to do something
+          }
+        }
+        if(MismatchWildcardMetric(reverse_complement(chroms.substr(iter, PAM_len)), PAM_rev_comp) == 0){
+          if(seed_hash.find(rev_comp_hash_val) != seed_hash.end()){
+            // hash matches seed, do something
+          }
+        }
       }while(iter < chroms[i].length() - len_sgRNA - PAM_len);
     }
 
