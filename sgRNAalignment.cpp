@@ -50,7 +50,7 @@ using std::min;
 using std::endl;
 using std::max;
 using std::cerr;
-using std::tr1::unordered_map;
+using std::tr1::unordered_multimap;
 
 inline char
 complement(char n){
@@ -340,7 +340,7 @@ build_seed_hash(const bool VERBOSE,
                 const size_t base,
                 const string PAM,
                 const vector<sgRNA> &possible_sgRNAs,
-                unordered_map<size_t, sgRNA> &seed_hash){
+                unordered_multimap<size_t, sgRNA> &seed_hash){
   string rev_PAM = reverse_complement(PAM);
   
   for(size_t i = 0; i < possible_sgRNAs.size(); i++){
@@ -360,7 +360,7 @@ build_seed_hash(const bool VERBOSE,
       cerr << "seed = " << seed_seq << endl;
       cerr << "key  = " << key << endl;
     }
-    seed_hash[key] = possible_sgRNAs[i];
+    seed_hash.insert(std::make_pair<size_t, sgRNA>(key, possible_sgRNAs[i]));
   }
 }
 
@@ -481,9 +481,10 @@ main(const int argc, const char **argv) {
       }
     }
     
-    unordered_map<size_t, sgRNA> seed_hash;
+    unordered_multimap<size_t, sgRNA> seed_hash;
     const size_t base = 5;
     const size_t precompute = pow(base, seed_length);
+    const size_t modulus = std::numeric_limits<size_t>::max();
     build_seed_hash(VERBOSE, seed_length, base, PAM_seq, possible_sgRNAs, seed_hash);
     if(VERBOSE){
       cerr << "seed hash table size = " << seed_hash.size() << endl;
@@ -506,23 +507,23 @@ main(const int argc, const char **argv) {
       string test_seq = chroms[i].substr(iter, len_sgRNA);
       size_t forward_hash_val = string2int(test_seq, base);
       size_t rev_comp_hash_val = string2int(reverse_complement(test_seq), base);
-      cerr << hash_val << endl;
+      cerr << forward_hash_val << endl;
       cerr << rev_comp_hash_val << endl;
       do{
         // update hash vals for RabinKarp
         forward_hash_val =
-          updateRabinKarp(forward_hash_val, chroms[iter + seed_length],
-                          chroms[iter + len_sgRNA], base, modulus, precompute);
+          updateRabinKarp(forward_hash_val, chroms[i][iter + seed_length],
+                          chroms[i][iter + len_sgRNA], base, modulus, precompute);
         rev_comp_hash_val =
-          updateRabinKarp(rev_comp_hash_val, complement(chroms[iter]),
-                          complement(chroms[iter + seed_length]),
+          updateRabinKarp(rev_comp_hash_val, complement(chroms[i][iter]),
+                          complement(chroms[i][iter + seed_length]),
                           base, modulus, precompute);
-        if(MismatchWildcardMetric(chroms.substr(iter + len_sgRNA, PAM_len), PAM) == 0){
+        if(MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len), PAM_seq) == 0){
           if(seed_hash.find(forward_hash_val) != seed_hash.end()){
             // hash matches seed, need to do something
           }
         }
-        if(MismatchWildcardMetric(reverse_complement(chroms.substr(iter, PAM_len)), PAM_rev_comp) == 0){
+        if(MismatchWildcardMetric(reverse_complement(chroms[i].substr(iter, PAM_len)), PAM_rev_comp) == 0){
           if(seed_hash.find(rev_comp_hash_val) != seed_hash.end()){
             // hash matches seed, do something
           }
