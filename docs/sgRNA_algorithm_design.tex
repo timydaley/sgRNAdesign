@@ -1,0 +1,142 @@
+\documentclass{article}[12pt]
+\usepackage{amsmath}
+\usepackage{natbib}
+\usepackage{graphicx}
+\usepackage{bbm}
+\usepackage{hyperref}
+
+\usepackage[top=1in, bottom=1.25in, left=1.25in, right=1.25in]{geometry}
+
+
+\usepackage{setspace}
+\linespread{1.25}
+
+
+\date{\today}
+
+\author{Timothy Daley}
+
+\title{Finding possible sgRNAs in a specified regions}
+
+\begin{document}
+\maketitle
+
+Suppose that we have a list of genes and we wish to
+design short guide RNAs (sgRNAs) for CRISPR knockout,
+activation, or inhibition (ko/a/i).  The regions for each type are 
+different.  For CRISPRko we typically want sgRNAs that are
+located in first exon of the transcript; in CRISPRa we want to
+target the promoter region of the gene, typically 400 to 50
+bases upstream of the transcription start site (TSS); and
+for CRISPRi we want to target around the TSS and 
+slightly downstream (e.g. -50 to +300 from the TSS).
+
+We will split up the design into the following steps:
+\begin{enumerate}
+\item From the gene names, obtain the sequences of the 
+targeted regions.  
+\item Given the DNA sequence of the targeted region,
+find sgRNA's that are acceptable by a given set of rules.
+\end{enumerate}
+
+Step 1 can be done using R and biomaRt 
+(\url{https://bioconductor.org/packages/release/bioc/html/biomaRt.html})
+if the rules for finding the target region are specified.
+
+Step 2 is where the meat of the problem lies.
+Typically one wishes to find guide sequences that are sufficiently
+different from all other similar length sequences in the genome.
+Current tools look for sequences that are at least a prespecified
+edit distance (e.g. $> 2$) using existing tools.  
+This ignores the varying importance of positions on the guide RNA.
+For example, the PAM distal bases are known to be
+most critical to binding specificity.  Accordingly these bases are
+known as the seed region are defined as between 7 and 12 base
+pairs closest to the PAM.  
+If all other subsequences of the genome are at least one edit distance away
+from the seed region, then binding will occur with few off-target effects.
+Ignoring this can reduce the set of possible target sequences.
+Our goal here is to find the set of sgRNAs within the
+input sequences with either no other sequences matching the
+seed region or at least 2 mismatches from the total sequence
+in a high throughput manner so that we can handle a large number of
+target sequences and a large reference genome.
+
+Given input:
+\begin{enumerate}
+\item DNA sequences of target region in FASTA format,
+\item Reference genome in FASTA format,
+\end{enumerate}
+we do the following:
+\begin{enumerate}
+\item Identify all possible sgRNAs in the target regions using 
+PAM,
+\item Construct a hash table using seed regions of possible sgRNAs,
+\item Hash the genome to find matches to the seed region, if there's a 
+match then calculate edit distance, only one match means
+no subsequences in the genome match the seed region.
+\end{enumerate}
+
+\section*{Constructing the hash table}
+
+
+We will use the seed regions of the possible sgRNAs
+as the hash values.  To make hashing efficient, we
+want to iteratively hash the genome using the Rabin-Karp.  
+
+Let $S$ denote the seed region.  For each
+letter $S_{i}, i = 1, \ldots, |S|$ in the seed region
+we can map each base to a unique integer
+\[
+\phi(S_{i}) = \begin{cases}
+0 & \text{ if } S_{i} = \text{A} \\
+1 & \text{ if } S_{i} = \text{C} \\
+2 & \text{ if } S_{i} = \text{G} \\
+3 & \text{ if } S_{i} = \text{T}.
+\end{cases}
+\]
+Each unique nucleotide sequence of length $|S|$
+can be represented as a unique number
+\begin{equation} \label{string2num}
+\phi(S) = \sum_{i = 1}^{|S|} 4^{i-1} \cdot \phi(S_{i})
+\end{equation}
+that is between $0$ and $4^{|S|}$.  This number
+will be the hash value of the seed sequence.
+
+\subsection*{Rabin-Karp shifting}
+
+Suppose we are traversing the genome $G$ iteratively.
+Given a position $j$ in the genome with sequence
+$G_{j} G_{j+1} \cdots G_{j + |S| - 1}$, the corresponding
+hash value of this sequence is 
+\[
+\phi(G_{j} G_{j+1} \cdots G_{j + |S| - 1}) = \sum_{i = 0}^{|S| - 1} 4^{i} \cdot \phi(G_{j + i}).
+\]
+The next position in the genome, $j + 1$ has hash value 
+\[
+\phi(G_{j + 1} G_{j+2} \cdots G_{j + |S|} ) = \sum_{i = 0}^{|S| -1} 4^{i} \cdot \phi(G_{j + 1 + i}).
+\]
+
+By definition, the last $|S| - 1$ bases of the first sequence
+are the first $|S| - 1$ bases of the second sequence.
+Therefore we can obtain $\phi(G_{j + 1} G_{j+2} \cdots G_{j + |S|} )$
+from $\phi(G_{j} G_{j+1} \cdots G_{j + |S| - 1}) $ by subtracting the 
+first base in the sequence, shifting the numerical base, and
+then adding the last base.  
+More simply,
+\begin{align}
+\phi(G_{j + 1} G_{j+2} \cdots G_{j + |S|} ) &= 
+4^{|S| - 1} \phi( G_{ j + |S|} ) + \sum_{i = 1}^{|S| - 1} 4^{i - 1} \cdot \phi( G_{j + i} )
+\notag \\
+&= 4^{|S| - 1} \phi( G_{ j + |S|} ) + 4^{-1} \sum_{i = 1}^{|S| - 1} 4^{i} \cdot \phi (G_{j + i}) 
+\notag \\
+&= 4^{|S| - 1} \phi( G_{ j + |S|} ) + 4^{-1} \big( \sum_{i = 0}^{|S| - 1} 4^{i} \cdot \phi(G_{j + i} )
+- \phi(G_{j}) \big)
+\notag \\
+&= 4^{|S| - 1} \phi( G_{ j + |S|} ) + 4^{-1} \big( \phi(G_{j} G_{j+1} \cdots G_{j + |S| - 1}) - \phi(G_{j}) \big)
+\notag
+\end{align}
+
+
+
+\end{document}
