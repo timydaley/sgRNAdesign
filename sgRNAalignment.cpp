@@ -95,7 +95,7 @@ to_upper(char n){
 }
 
 /*
-// from smithlab_utils.hpp (https://github.com/smithlabcode/smithlab_cpp)
+// from smithlab_utils.hpp
 inline size_t
 base2int(char c) {
   switch(c) {
@@ -114,27 +114,47 @@ base2int(char c) {
 
 // convert whole string to integer value for Rabin-Karp
 inline size_t
-string2int(const string seq,
-           const size_t base){
-  // sum_{i = 0}^{|seq| - 1} seq[i]*base^i
+string2int(const string seq){
+  // sum_{i = 0}^{|seq| - 1} seq[i]*4^i
   size_t x = 0;
   for(size_t i = 0; i < seq.size(); i++)
-    x += base2int(seq[i])*pow(base, i);
+    x += base2int(seq[i])*(1 << 2*i);
   return x;
 }
 
 //
 inline size_t
-updateRabinKarp(const size_t prev_val,
-                const char start_char,
-                const char next_char,
-                const size_t base,
-                const size_t modulus,
-                const size_t precompute){
+updateHashValForward(const size_t prev_val,
+                     const size_t seed_length,
+                     const char start_char,
+                     const char next_char){
   // next_val = (prev_val - (seq[0] * base^(seq.size() - 1))) * base + base2int(next_char) mod modulus
   // precompute = base^(seq.size() - 1)
-  size_t next_val = (prev_val - base2int(start_char)*precompute)*base + base2int(next_char);
-  next_val = next_val % modulus; // if modulus = max size_t, comment this out
+  size_t next_val = prev_val - base2int(start_char);
+  // make sure bit shifting will work correctly
+  assert(next_val % 4 == 0);
+  // divide by 4 using bit shift
+  next_val >>= 2;
+  // add 4^(seed_length - 1)*base2int(next_char)
+  next_val += (1 << 2*(seed_length - 1))*base2int(next_char);
+  //  next_val = next_val % modulus; // if modulus = max size_t, comment this out
+  return next_val;
+}
+
+inline size_t
+updateHashValReverseComp(const size_t prev_val,
+                         const size_t seed_length,
+                         const char start_char,
+                         const char next_char){
+  const char start_char_comp = complement(start_char);
+  const char next_char_comp = complement(next_char);
+  // next_val = (prev_val - 4^(seed_length - 1)*base2int(start_char_comp))*4 + base2int(next_char_comp)
+  size_t next_val = prev_val - (1 << 2*(seed_length - 1))*base2int(start_char_comp);
+  // multiply by 4 using bit shift
+  next_val <<= 2;
+  // add next char
+  next_val += base2int(next_char_comp);
+  //  next_val = next_val % modulus; // if modulus = max size_t, comment this out
   return next_val;
 }
 
@@ -337,7 +357,6 @@ propose_sgRNAs(const bool VERBOSE,
 void
 build_seed_hash(const bool VERBOSE,
                 const size_t seed_length,
-                const size_t base,
                 const string PAM,
                 const vector<sgRNA> &possible_sgRNAs,
                 unordered_multimap<size_t, sgRNA> &seed_hash){
@@ -355,7 +374,7 @@ build_seed_hash(const bool VERBOSE,
                                                - 1 - PAM.size() - seed_length,
                                                seed_length);
     }
-    key = string2int(seed_seq, base);
+    key = string2int(seed_seq);
     if(VERBOSE){
       cerr << "seed = " << seed_seq << endl;
       cerr << "key  = " << key << endl;
@@ -482,10 +501,7 @@ main(const int argc, const char **argv) {
     }
     
     unordered_multimap<size_t, sgRNA> seed_hash;
-    const size_t base = 5;
-    const size_t precompute = pow(base, seed_length);
-    const size_t modulus = std::numeric_limits<size_t>::max();
-    build_seed_hash(VERBOSE, seed_length, base, PAM_seq, possible_sgRNAs, seed_hash);
+    build_seed_hash(VERBOSE, seed_length, PAM_seq, possible_sgRNAs, seed_hash);
     if(VERBOSE){
       cerr << "seed hash table size = " << seed_hash.size() << endl;
     }
@@ -505,19 +521,20 @@ main(const int argc, const char **argv) {
     for(size_t i = 0; i < chroms.size(); i++){
       size_t iter = chroms[i].find_first_not_of("Nn");
       string test_seq = chroms[i].substr(iter, len_sgRNA);
-      size_t forward_hash_val = string2int(test_seq, base);
-      size_t rev_comp_hash_val = string2int(reverse_complement(test_seq), base);
+      size_t forward_hash_val = string2int(test_seq);
+      size_t rev_comp_hash_val = string2int(reverse_complement(test_seq));
       cerr << forward_hash_val << endl;
       cerr << rev_comp_hash_val << endl;
       do{
         // update hash vals for RabinKarp
         forward_hash_val =
-          updateRabinKarp(forward_hash_val, chroms[i][iter + seed_length],
-                          chroms[i][iter + len_sgRNA], base, modulus, precompute);
+          updateHashValForward(forward_hash_val, seed_length,
+                               chroms[i][iter + len_sgRNA - seed_length],
+                               chroms[i][iter + len_sgRNA]);
         rev_comp_hash_val =
-          updateRabinKarp(rev_comp_hash_val, complement(chroms[i][iter]),
-                          complement(chroms[i][iter + seed_length]),
-                          base, modulus, precompute);
+          updateHashValReverseComp(rev_comp_hash_val, seed_length,
+                                   complement(chroms[i][iter]),
+                                   complement(chroms[i][iter + seed_length]));
         if(MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len), PAM_seq) == 0){
           if(seed_hash.find(forward_hash_val) != seed_hash.end()){
             // hash matches seed, need to do something
