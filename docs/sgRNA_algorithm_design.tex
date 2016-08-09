@@ -133,10 +133,62 @@ More simply,
 &= 4^{|S| - 1} \phi( G_{ j + |S|} ) + 4^{-1} \big( \sum_{i = 0}^{|S| - 1} 4^{i} \cdot \phi(G_{j + i} )
 - \phi(G_{j}) \big)
 \notag \\
-&= 4^{|S| - 1} \phi( G_{ j + |S|} ) + 4^{-1} \big( \phi(G_{j} G_{j+1} \cdots G_{j + |S| - 1}) - \phi(G_{j}) \big)
+&= 4^{|S| - 1} \phi( G_{ j + |S|} ) + 4^{-1} \big( \phi(G_{j} G_{j+1} \cdots G_{j + |S| - 1}) - \phi(G_{j}) \big).
 \notag
 \end{align}
 
+This gives a way to iteratively compute the hash values of
+the seed sequences.  One issue is that integer division is 
+not fast, so we would like to avoid this. 
+(Never mind.  Since we are dividing by $2^2$ we can use two bit shifts
+to do the division and this is very efficient)
+One way is to define $\psi(S) = \sum_{i = 1}^{|S|} 4^{|S| - i} \cdot \phi(S_{i})$.
+In this case the hash value of the sequence
+$G_{j+1} G_{j + 2} \cdots G_{j + |S|}$ is equal to
+\begin{align}
+\psi(G_{j+1} G_{j + 2} \cdots G_{j + |S|})
+&= \sum_{i = 1}^{|S|} 4^{|S| - i} \cdot \phi(G_{j + i}) 
+\notag  \\
+&= \phi(G_{j + |S|}) + \sum_{i = 1}^{|S| - 1} 4^{|S| - i} \phi(G_{j + i})
+\notag \\
+&= \phi(G_{j + |S|}) + 4 \sum_{i = 2}^{|S|} 4^{|S| - i} \phi(G_{j + i - 1})
+\notag \\
+&=  \phi(G_{j + |S|}) + 4 \big( \sum_{i = 1}^{|S|} 4^{|S| - i} \phi(G_{j + i - 1})
+- 4^{|S| - 1} \phi(G_{j}) \big)
+\notag \\
+&= \phi(G_{j + |S|}) + 4 \big( \psi(G_{j} G_{j + 1} \cdots G_{j + |S| - 1}) - 4^{|S| - 1} \phi(G_{j}) \big).
+\notag
+\end{align}
+This recursive formula uses multiplication instead of division
+and should be more efficient than the previous recursion.
+
+Note that the largest value of a size\_t in C++ is 
+$2^{64} - 1$ and that the largest value of the hash value
+is equal to $4^{|S|}$.  As long as the seed sequence is less than $32$
+bases long we will never run into overflow issues.  And typically the seed
+sequence is between 6 and 12 bases long, so we expect no issues.
+
+Now consider the reverse complement of the seed sequence.  
+Let $\bar{S} = \bar{S}_{|S|} \bar{S}_{|S| - 1} \cdots \bar{S}_{1}$
+denote the reverse complement of the sequence $S$.  
+We must also hash the seed sequence of the reverse complement 
+of the proposed sgRNA.  Since the sequence is reversed, it should
+be more efficient to use the first function $\phi(\bar{S})$ as the hash
+value.  
+
+\begin{align}
+\phi( \bar{G}_{j + |S|} \bar{G}_{j + |S| - 1} \cdot \bar{G}_{j + 1})
+&= \sum_{i = 1}^{|S|} 4^{i - 1} \cdot \phi(\bar{G}_{j + |S| + 1 - i})
+\notag \\
+&= \phi ( \bar{G}_{j + |S|}) + \sum_{i = 1}^{|S| - 1} 4^{i} \cdot \phi(\bar{G}_{j + |S| - i})
+\notag \\
+&= \phi ( \bar{G}_{j + |S|})  + 4 \big( \sum_{i = 1}^{|S|} 4^{i - 1} \cdot \phi( \bar{G}_{j + |S| - i})
+- 4^{|S| - 1} \phi( \bar{G}_{j}) \big)
+\notag \\
+&= \phi ( \bar{G}_{j + |S|})  + 4 \big( \phi(\bar{G}_{j} \cdots \bar{G}_{j + |S| - 1}) - 4^{|S| - 1}
+\phi(\bar{G}_{j}) \big)
+\notag
+\end{align}
 
 
 \end{document}
