@@ -132,6 +132,12 @@ updateHashValForward(const size_t prev_val,
   // precompute = base^(seq.size() - 1)
   size_t next_val = prev_val - base2int(start_char);
   // make sure bit shifting will work correctly
+  if(!(next_val % 4 == 0)){
+    cerr << "possible issue with updating hash val" << endl;
+    cerr << "prev_val = " << prev_val << endl;
+    cerr << "start_char = " << start_char << endl;
+    cerr << "next_val = " << next_val << endl;
+  }
   assert(next_val % 4 == 0);
   // divide by 4 using bit shift
   next_val >>= 2;
@@ -215,6 +221,7 @@ struct matched_alignment {
 struct sgRNA {
   sgRNA () {}
   sgRNA(const string s, const bool rc) {seq = s; rev_comp = rc;}
+  sgRNA(const string s, const size_t k, const bool rc) {seq = s; key = k; rev_comp = rc;}
   
   string seq;
   size_t key;
@@ -457,7 +464,7 @@ main(const int argc, const char **argv) {
     
     vector<string> leftover_args;
     opt_parse.parse(argc, argv, leftover_args);
-    if (argc == 1 || opt_parse.help_requested()) {
+    if (argc == 1 || argc == 0 || opt_parse.help_requested()) {
       cerr << opt_parse.help_message() << endl;
       return EXIT_SUCCESS;
     }
@@ -520,11 +527,14 @@ main(const int argc, const char **argv) {
     // loop over chroms
     for(size_t i = 0; i < chroms.size(); i++){
       size_t iter = chroms[i].find_first_not_of("Nn");
-      string test_seq = chroms[i].substr(iter, len_sgRNA);
-      size_t forward_hash_val = string2int(test_seq);
-      size_t rev_comp_hash_val = string2int(reverse_complement(test_seq));
-      cerr << forward_hash_val << endl;
-      cerr << rev_comp_hash_val << endl;
+      size_t forward_hash_val = string2int(chroms[i].substr(iter + len_sgRNA - seed_length, seed_length));
+      size_t rev_comp_hash_val =
+        string2int(reverse_complement(chroms[i].substr(iter, seed_length)));
+      cerr << "forward_hash_val = " << forward_hash_val << endl;
+      cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length, seed_length) << endl;
+      cerr << "rev_comp_hash_val = " << rev_comp_hash_val << endl;
+      cerr << "seq = " << reverse_complement(chroms[i].substr(iter, seed_length)) << endl;
+      
       do{
         // update hash vals for RabinKarp
         forward_hash_val =
@@ -535,6 +545,12 @@ main(const int argc, const char **argv) {
           updateHashValReverseComp(rev_comp_hash_val, seed_length,
                                    complement(chroms[i][iter]),
                                    complement(chroms[i][iter + seed_length]));
+        if(VERBOSE){
+          cerr << "forward_hash_val = " << forward_hash_val << endl;
+          cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length, seed_length) << endl;
+          cerr << "rev_comp_hash_val = " << rev_comp_hash_val << endl;
+          cerr << "seq = " << reverse_complement(chroms[i].substr(iter, seed_length)) << endl;
+        }
         if(MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len), PAM_seq) == 0){
           if(seed_hash.find(forward_hash_val) != seed_hash.end()){
             // hash matches seed, need to do something
@@ -545,6 +561,7 @@ main(const int argc, const char **argv) {
             // hash matches seed, do something
           }
         }
+        iter++;
       }while(iter < chroms[i].length() - len_sgRNA - PAM_len);
     }
 
