@@ -152,8 +152,8 @@ updateHashValReverseComp(const size_t prev_val,
                          const size_t seed_length,
                          const char start_char,
                          const char next_char){
-  const char start_char_comp = complement(start_char);
-  const char next_char_comp = complement(next_char);
+  const char start_char_comp = complement(to_upper(start_char));
+  const char next_char_comp = complement(to_upper(next_char));
   // next_val = (prev_val - 4^(seed_length - 1)*base2int(start_char_comp))*4 + base2int(next_char_comp)
   size_t next_val = prev_val - (1 << 2*(seed_length - 1))*base2int(start_char_comp);
   // multiply by 4 using bit shift
@@ -169,7 +169,7 @@ reverse_complement(const string seq){
   string rev_comp;
   rev_comp.resize(seq.size());
   for(size_t i = 0; i < seq.size(); i++){
-    rev_comp[seq.size() - 1  - i] = complement(seq[i]);
+    rev_comp[seq.size() - 1  - i] = complement(to_upper(seq[i]));
   }
   return rev_comp;
 }
@@ -543,8 +543,8 @@ main(const int argc, const char **argv) {
                                chroms[i][iter + len_sgRNA]);
         rev_comp_hash_val =
           updateHashValReverseComp(rev_comp_hash_val, seed_length,
-                                   complement(chroms[i][iter]),
-                                   complement(chroms[i][iter + seed_length]));
+                                   chroms[i][iter],
+                                   chroms[i][iter + seed_length]);
         if(VERBOSE){
           cerr << "forward_hash_val = " << forward_hash_val << endl;
           cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length, seed_length) << endl;
@@ -562,6 +562,8 @@ main(const int argc, const char **argv) {
           }
         }
         iter++;
+        cerr << "iter = " << iter << endl;
+        // what to do when you reach an N?
       }while(iter < chroms[i].length() - len_sgRNA - PAM_len);
     }
 
