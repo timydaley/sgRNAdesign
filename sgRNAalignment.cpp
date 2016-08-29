@@ -545,12 +545,14 @@ main(const int argc, const char **argv) {
           updateHashValReverseComp(rev_comp_hash_val, seed_length,
                                    chroms[i][iter],
                                    chroms[i][iter + seed_length]);
+        /*
         if(VERBOSE){
           cerr << "forward_hash_val = " << forward_hash_val << endl;
-          cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length, seed_length) << endl;
+          cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length + 1, seed_length) << endl;
           cerr << "rev_comp_hash_val = " << rev_comp_hash_val << endl;
-          cerr << "seq = " << reverse_complement(chroms[i].substr(iter, seed_length)) << endl;
+          cerr << "seq = " << reverse_complement(chroms[i].substr(iter + 1, seed_length)) << endl;
         }
+         */
         if(MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len), PAM_seq) == 0){
           if(seed_hash.find(forward_hash_val) != seed_hash.end()){
             // hash matches seed, need to do something
@@ -562,7 +564,7 @@ main(const int argc, const char **argv) {
           }
         }
         iter++;
-        cerr << "iter = " << iter << endl;
+      //  cerr << "iter = " << iter << endl;
         // what to do when you reach an N?
       }while(iter < chroms[i].length() - len_sgRNA - PAM_len);
     }
