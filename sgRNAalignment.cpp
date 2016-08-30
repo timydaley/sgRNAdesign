@@ -174,6 +174,7 @@ reverse_complement(const string seq){
   return rev_comp;
 }
 
+// wildcard = 'N'
 int
 LevenshteinWildcardMetric(const string &s1,
                           const string &s2){
@@ -199,6 +200,7 @@ LevenshteinWildcardMetric(const string &s1,
   return dist[s1.size()][s2.size()];
 }
 
+// wildcard = 'N'
 int
 MismatchWildcardMetric(const string &s1,
                        const string &s2){
@@ -530,21 +532,15 @@ main(const int argc, const char **argv) {
       size_t forward_hash_val = string2int(chroms[i].substr(iter + len_sgRNA - seed_length, seed_length));
       size_t rev_comp_hash_val =
         string2int(reverse_complement(chroms[i].substr(iter, seed_length)));
-      cerr << "forward_hash_val = " << forward_hash_val << endl;
-      cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length, seed_length) << endl;
-      cerr << "rev_comp_hash_val = " << rev_comp_hash_val << endl;
-      cerr << "seq = " << reverse_complement(chroms[i].substr(iter, seed_length)) << endl;
+      if(VERBOSE){
+        cerr << "forward_hash_val = " << forward_hash_val << endl;
+        cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length, seed_length) << endl;
+        cerr << "rev_comp_hash_val = " << rev_comp_hash_val << endl;
+        cerr << "seq = " << reverse_complement(chroms[i].substr(iter, seed_length)) << endl;
+      }
       
       do{
-        // update hash vals for RabinKarp
-        forward_hash_val =
-          updateHashValForward(forward_hash_val, seed_length,
-                               chroms[i][iter + len_sgRNA - seed_length],
-                               chroms[i][iter + len_sgRNA]);
-        rev_comp_hash_val =
-          updateHashValReverseComp(rev_comp_hash_val, seed_length,
-                                   chroms[i][iter],
-                                   chroms[i][iter + seed_length]);
+
         /*
         if(VERBOSE){
           cerr << "forward_hash_val = " << forward_hash_val << endl;
@@ -555,18 +551,33 @@ main(const int argc, const char **argv) {
          */
         if(MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len), PAM_seq) == 0){
           if(seed_hash.find(forward_hash_val) != seed_hash.end()){
-            // hash matches seed, need to do something
+            if(VERBOSE){
+              cerr << "match for " << forward_hash_val << " found at " << iter << endl;
+            }
+            auto matches = seed_hash.equal_range(forward_hash_val);
+            int d = LevenshteinWildcardMetric(chroms[i].substr(iter, len_sgRNA),
           }
         }
         if(MismatchWildcardMetric(reverse_complement(chroms[i].substr(iter, PAM_len)), PAM_rev_comp) == 0){
           if(seed_hash.find(rev_comp_hash_val) != seed_hash.end()){
-            // hash matches seed, do something
+
           }
         }
+        // update hash vals for RabinKarp after checking
+        forward_hash_val =
+        updateHashValForward(forward_hash_val, seed_length,
+                             chroms[i][iter + len_sgRNA - seed_length],
+                             chroms[i][iter + len_sgRNA]);
+        rev_comp_hash_val =
+        updateHashValReverseComp(rev_comp_hash_val, seed_length,
+                                 chroms[i][iter],
+                                 chroms[i][iter + seed_length]);
         iter++;
+        
+
       //  cerr << "iter = " << iter << endl;
         // what to do when you reach an N?
-      }while(iter < chroms[i].length() - len_sgRNA - PAM_len);
+      }while(iter < chroms[i].length() - len_sgRNA - PAM_len && chroms[i][iter + len_sgRNA] != 'N');
     }
 
     

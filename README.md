@@ -38,4 +38,6 @@ Workflow:
 
 	4. Only one exact match (which should be the sgRNA in the genome): return sgRNA
 
-	5. More than one exact match, then do exact alignment of candidates against proposed sgRNA 
+	5. More than one exact match, then do exact alignment
+	   
+	   a. Use aligment to prune candidate sgRNAs  
