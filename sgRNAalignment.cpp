@@ -548,16 +548,19 @@ main(const int argc, const char **argv) {
           cerr << "seq = " << reverse_complement(chroms[i].substr(iter + 1, seed_length)) << endl;
         }
          */
-        if(MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len), PAM_seq) == 0){
+        if(MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len),
+                                  PAM_seq) == 0){
           if(seed_hash.find(forward_hash_val) != seed_hash.end()){
             if(VERBOSE){
               cerr << "match for " << forward_hash_val << " found at " << iter << endl;
             }
-            std::pair<unordered_multimap<size_t, sgRNA>::iterator, unordered_multimap<size_t, sgRNA>::iterator>
+            std::pair<unordered_multimap<size_t, sgRNA>::iterator,
+                      unordered_multimap<size_t, sgRNA>::iterator>
               matches = seed_hash.equal_range(forward_hash_val);
             for(unordered_multimap<size_t, sgRNA>::iterator it = matches.first;
                 it != matches.second; it++){
-              int d = LevenshteinWildcardMetric(chroms[i].substr(iter, len_sgRNA), it->second.seq);
+              int d = LevenshteinWildcardMetric(chroms[i].substr(iter, len_sgRNA),
+                                                it->second.seq);
               if(d <= edit_dist){
                 // remove sgRNA if there is more than one match
                 if(it->second.matches.size() > 1){
@@ -567,7 +570,9 @@ main(const int argc, const char **argv) {
                   MappedRead match;
                   match.seq = it->second.seq;
                   match.scr = d;
-                  GenomicRegion gr = GenomicRegion(chrom_names[i], iter + PAM_len + 1, iter + PAM_len + len_sgRNA);
+                  GenomicRegion gr = GenomicRegion(chrom_names[i],
+                                                   iter + PAM_len + 1,
+                                                   iter + PAM_len + len_sgRNA);
                   gr.set_strand('-');
                   match.r = gr;
                   it->second.matches.push_back(match);
@@ -578,7 +583,9 @@ main(const int argc, const char **argv) {
                 MappedRead match;
                 match.seq = it->second.seq;
                 match.scr = d;
-                GenomicRegion gr = GenomicRegion(chrom_names[i], iter + 1, iter + len_sgRNA);
+                GenomicRegion gr = GenomicRegion(chrom_names[i],
+                                                 iter + 1,
+                                                 iter + len_sgRNA);
                 gr.set_strand('+');
                 match.r = gr;
                 it->second.matches.push_back(match);
@@ -586,12 +593,14 @@ main(const int argc, const char **argv) {
             }
           }
         }
-        if(MismatchWildcardMetric(reverse_complement(chroms[i].substr(iter, PAM_len)), PAM_rev_comp) == 0){
+        if(MismatchWildcardMetric(reverse_complement(chroms[i].substr(iter, PAM_len)),
+                                  PAM_rev_comp) == 0){
           if(seed_hash.find(rev_comp_hash_val) != seed_hash.end()){
             if(VERBOSE){
               cerr << "match for " << rev_comp_hash_val << " found at " << iter << endl;
             }
-            std::pair<unordered_multimap<size_t, sgRNA>::iterator, unordered_multimap<size_t, sgRNA>::iterator>
+            std::pair<unordered_multimap<size_t, sgRNA>::iterator,
+                      unordered_multimap<size_t, sgRNA>::iterator>
             matches = seed_hash.equal_range(rev_comp_hash_val);
             for(unordered_multimap<size_t, sgRNA>::iterator it = matches.first;
                 it != matches.second; it++){
@@ -606,7 +615,9 @@ main(const int argc, const char **argv) {
                   MappedRead match;
                   match.seq = it->second.seq;
                   match.scr = d;
-                  GenomicRegion gr = GenomicRegion(chrom_names[i], iter + PAM_len + 1, iter + PAM_len + len_sgRNA);
+                  GenomicRegion gr = GenomicRegion(chrom_names[i],
+                                                   iter + PAM_len + 1,
+                                                   iter + PAM_len + len_sgRNA);
                   gr.set_strand('-');
                   match.r = gr;
                   it->second.matches.push_back(match);
@@ -617,7 +628,9 @@ main(const int argc, const char **argv) {
                 MappedRead match;
                 match.seq = it->second.seq;
                 match.scr = d;
-                GenomicRegion gr = GenomicRegion(chrom_names[i], iter + PAM_len + 1, iter + PAM_len + len_sgRNA);
+                GenomicRegion gr = GenomicRegion(chrom_names[i],
+                                                 iter + PAM_len + 1,
+                                                 iter + PAM_len + len_sgRNA);
                 gr.set_strand('-');
                 match.r = gr;
                 it->second.matches.push_back(match);
