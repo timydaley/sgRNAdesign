@@ -559,8 +559,19 @@ main(const int argc, const char **argv) {
                 it != matches.second; it++){
               int d = LevenshteinWildcardMetric(chroms[i].substr(iter, len_sgRNA), it->second.seq);
               if(d <= edit_dist){
-                // remove sgRNA
-                seed_hash.erase(it);
+                // remove sgRNA if there is more than one match
+                if(it->second.matches.size() > 1){
+                  seed_hash.erase(it);
+                }
+                else{
+                  MappedRead match;
+                  match.seq = it->second.seq;
+                  match.scr = d;
+                  GenomicRegion gr = GenomicRegion(chrom_names[i], iter + PAM_len + 1, iter + PAM_len + len_sgRNA);
+                  gr.set_strand('-');
+                  match.r = gr;
+                  it->second.matches.push_back(match);
+                }
               }
               // if d > edit_dist, keep sgRNA
               else{
@@ -587,8 +598,19 @@ main(const int argc, const char **argv) {
               int d = LevenshteinWildcardMetric(reverse_complement(chroms[i].substr(iter + PAM_len, len_sgRNA)),
                                                 it->second.seq);
               if(d <= edit_dist){
-                // remove sgRNA
-                seed_hash.erase(it);
+                // remove sgRNA if there is more than one match
+                if(it->second.matches.size() > 1){
+                  seed_hash.erase(it);
+                }
+                else{
+                  MappedRead match;
+                  match.seq = it->second.seq;
+                  match.scr = d;
+                  GenomicRegion gr = GenomicRegion(chrom_names[i], iter + PAM_len + 1, iter + PAM_len + len_sgRNA);
+                  gr.set_strand('-');
+                  match.r = gr;
+                  it->second.matches.push_back(match);
+                }
               }
               // if d > edit_dist, keep sgRNA
               else{
