@@ -42,6 +42,7 @@
 #include <GenomicRegion.hpp>
 #include <RNG.hpp>
 #include <smithlab_os.hpp>
+#include <MappedRead.hpp>
 
 
 using std::string;
@@ -51,6 +52,18 @@ using std::endl;
 using std::max;
 using std::cerr;
 using std::tr1::unordered_multimap;
+
+
+struct sgRNA {
+  sgRNA () {}
+  sgRNA(const string s, const bool rc) {seq = s; rev_comp = rc;}
+  sgRNA(const string s, const size_t k, const bool rc) {seq = s; key = k; rev_comp = rc;}
+  
+  string seq;
+  size_t key;
+  bool rev_comp;
+  vector<MappedRead> matches;
+};
 
 inline char
 complement(char n){
@@ -215,21 +228,7 @@ MismatchWildcardMetric(const string &s1,
   return dist;
 }
 
-struct matched_alignment {
-  string seq;
-  int score;
-};
 
-struct sgRNA {
-  sgRNA () {}
-  sgRNA(const string s, const bool rc) {seq = s; rev_comp = rc;}
-  sgRNA(const string s, const size_t k, const bool rc) {seq = s; key = k; rev_comp = rc;}
-  
-  string seq;
-  size_t key;
-  bool rev_comp;
-  vector<matched_alignment> matches;
-};
 
 std::ostream&
 operator<<(std::ostream& the_stream, const sgRNA &sgrna){
@@ -554,13 +553,54 @@ main(const int argc, const char **argv) {
             if(VERBOSE){
               cerr << "match for " << forward_hash_val << " found at " << iter << endl;
             }
-            auto matches = seed_hash.equal_range(forward_hash_val);
-            int d = LevenshteinWildcardMetric(chroms[i].substr(iter, len_sgRNA),
+            std::pair<unordered_multimap<size_t, sgRNA>::iterator, unordered_multimap<size_t, sgRNA>::iterator>
+              matches = seed_hash.equal_range(forward_hash_val);
+            for(unordered_multimap<size_t, sgRNA>::iterator it = matches.first;
+                it != matches.second; it++){
+              int d = LevenshteinWildcardMetric(chroms[i].substr(iter, len_sgRNA), it->second.seq);
+              if(d <= edit_dist){
+                // remove sgRNA
+                seed_hash.erase(it);
+              }
+              // if d > edit_dist, keep sgRNA
+              else{
+                MappedRead match;
+                match.seq = it->second.seq;
+                match.scr = d;
+                GenomicRegion gr = GenomicRegion(chrom_names[i], iter + 1, iter + len_sgRNA);
+                gr.set_strand('+');
+                match.r = gr;
+                it->second.matches.push_back(match);
+              }
+            }
           }
         }
         if(MismatchWildcardMetric(reverse_complement(chroms[i].substr(iter, PAM_len)), PAM_rev_comp) == 0){
           if(seed_hash.find(rev_comp_hash_val) != seed_hash.end()){
-
+            if(VERBOSE){
+              cerr << "match for " << rev_comp_hash_val << " found at " << iter << endl;
+            }
+            std::pair<unordered_multimap<size_t, sgRNA>::iterator, unordered_multimap<size_t, sgRNA>::iterator>
+            matches = seed_hash.equal_range(rev_comp_hash_val);
+            for(unordered_multimap<size_t, sgRNA>::iterator it = matches.first;
+                it != matches.second; it++){
+              int d = LevenshteinWildcardMetric(reverse_complement(chroms[i].substr(iter + PAM_len, len_sgRNA)),
+                                                it->second.seq);
+              if(d <= edit_dist){
+                // remove sgRNA
+                seed_hash.erase(it);
+              }
+              // if d > edit_dist, keep sgRNA
+              else{
+                MappedRead match;
+                match.seq = it->second.seq;
+                match.scr = d;
+                GenomicRegion gr = GenomicRegion(chrom_names[i], iter + PAM_len + 1, iter + PAM_len + len_sgRNA);
+                gr.set_strand('-');
+                match.r = gr;
+                it->second.matches.push_back(match);
+              }
+            }
           }
         }
         // update hash vals for RabinKarp after checking
