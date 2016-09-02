@@ -137,6 +137,31 @@ string2int(const string seq){
   return x;
 }
 
+inline char
+int2base(const int i){
+  switch(i) {
+    case 0  : return 'A';
+    case 1  : return 'C';
+    case 2  : return 'G';
+    case 3  : return 'T';
+    default : return 'N';
+  }
+}
+
+inline string
+int2string(const int input_int,
+           const size_t string_length){
+  int remainder = input_int;
+  string i2s;
+  i2s.resize(string_length, 'A');
+  for(size_t i = string_length - 1; i >= 0; i--){
+    int divisor = 1 << 2*i;
+    i2s[i] = int2base(remainder/divisor);
+    remainder = remainder % divisor;
+  }
+  return i2s;
+}
+
 //
 inline size_t
 updateHashValForward(const size_t prev_val,
@@ -381,7 +406,7 @@ build_seed_hash(const bool VERBOSE,
     }
     else{
       seed_seq = possible_sgRNAs[i].seq.substr(possible_sgRNAs[i].seq.size()
-                                               - 1 - PAM.size() - seed_length,
+                                              - PAM.size() - seed_length,
                                                seed_length);
     }
     key = string2int(seed_seq);
@@ -395,15 +420,37 @@ build_seed_hash(const bool VERBOSE,
 
 void
 remove_duplicate_sgRNAs(const bool VERBOSE,
+                        const size_t len_sgRNA,
                         const size_t seed_length,
                         SeedHash &seed_hash){
+  // need to iterate over unique keys
+  // upper_bound is the position of the next unique key
+  SeedHash::iterator upper_bound = seed_hash.begin();
+  size_t hash_count = 0;
+  size_t n_entries = 0;
+  
   for(SeedHash::iterator hashit = seed_hash.begin();
-      hashit != seed_hash.end(); hashit++){
+      hashit != seed_hash.end(); hashit = upper_bound){
+    cerr << "hash load = " << seed_hash.count(hashit->first) << endl;
     if(seed_hash.count(hashit->first) > 1){
       // more than one entry with the same key hashit->first
-      
+      vector<string> duplicate_hashes;
+      std::pair<SeedHash::iterator, SeedHash::iterator>
+        duplicate_iterator = seed_hash.equal_range(hashit->first);
+      for(SeedHash::iterator it = duplicate_iterator.first; it != duplicate_iterator.second; it++){
+        duplicate_hashes.push_back(it->second.seq.substr(0, len_sgRNA));
+        n_entries++;
+      }
+      cerr << "number of duplicate hashes = " << duplicate_hashes.size() << endl;
+      upper_bound = duplicate_iterator.second;
     }
+    else{
+      upper_bound++;
+      n_entries++;
+    }
+    hash_count++;
   }
+  cerr << "went through " << hash_count << " keys and " << n_entries << " entries" << endl;
 }
 
 
@@ -529,6 +576,8 @@ main(const int argc, const char **argv) {
       cerr << "seed hash table size = " << seed_hash.size() << endl;
     }
     
+    remove_duplicate_sgRNAs(VERBOSE, len_sgRNA, seed_length, seed_hash);
+    
     vector<string> chroms;
     vector<string> chrom_names;
     std::ifstream in(genome_file_name.c_str());
@@ -568,16 +617,16 @@ main(const int argc, const char **argv) {
           if(seed_hash.find(forward_hash_val) != seed_hash.end()){
             if(VERBOSE){
               cerr << "forward match for " << forward_hash_val << " found at " << iter << endl;
-              cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length, seed_length) << endl;
+              
+              cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length + 1, seed_length) << endl;
             }
             
-            std::pair<SeedHash::iterator,
-                      SeedHash::iterator>
+            std::pair<SeedHash::iterator, SeedHash::iterator>
               matches = seed_hash.equal_range(forward_hash_val);
             for(SeedHash::iterator it = matches.first;
                 it != matches.second; it++){
               cerr << "proposed sgRNA = " << it->second.seq << endl;
-              cerr << "full sequence  = " << chroms[i].substr(iter, len_sgRNA) << endl;
+              cerr << "full sequence  = " << chroms[i].substr(iter + 1, len_sgRNA) << endl;
               int d = LevenshteinWildcardMetric(chroms[i].substr(iter, len_sgRNA),
                                                 it->second.seq.substr(0, len_sgRNA));
               cerr << "edit distance  = " << d << endl;
@@ -620,8 +669,7 @@ main(const int argc, const char **argv) {
               cerr << "reverse complement match for " << rev_comp_hash_val << " found at " << iter << endl;
               cerr << "seq = " << reverse_complement(chroms[i].substr(iter, seed_length)) << endl;
             }
-            std::pair<SeedHash::iterator,
-                      SeedHash::iterator>
+            std::pair<SeedHash::iterator, SeedHash::iterator>
             matches = seed_hash.equal_range(rev_comp_hash_val);
             for(SeedHash::iterator it = matches.first;
                 it != matches.second; it++){
