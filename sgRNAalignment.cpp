@@ -154,9 +154,10 @@ int2string(const int input_int,
   int remainder = input_int;
   string i2s;
   i2s.resize(string_length, 'A');
-  for(size_t i = string_length - 1; i >= 0; i--){
-    int divisor = 1 << 2*i;
-    i2s[i] = int2base(remainder/divisor);
+  size_t iter = 0;
+  for(size_t i = string_length; i > 0; i--){
+    int divisor = 1 << 2*(i - 1);
+    i2s[i - 1] = int2base(remainder/divisor);
     remainder = remainder % divisor;
   }
   return i2s;
@@ -589,6 +590,7 @@ main(const int argc, const char **argv) {
     }
     assert(chroms.size() == chrom_names.size());
 
+    /*
     // loop over chroms
     for(size_t i = 0; i < chroms.size(); i++){
       size_t iter = chroms[i].find_first_not_of("Nn");
@@ -604,14 +606,14 @@ main(const int argc, const char **argv) {
       
       do{
 
-        /*
+     
         if(VERBOSE){
           cerr << "forward_hash_val = " << forward_hash_val << endl;
           cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length + 1, seed_length) << endl;
           cerr << "rev_comp_hash_val = " << rev_comp_hash_val << endl;
           cerr << "seq = " << reverse_complement(chroms[i].substr(iter + 1, seed_length)) << endl;
         }
-         */
+     
         if(MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len),
                                   PAM_seq) == 0){
           if(seed_hash.find(forward_hash_val) != seed_hash.end()){
@@ -730,6 +732,10 @@ main(const int argc, const char **argv) {
     
     cerr << "the number of proposed sgRNAs was " << possible_sgRNAs.size() << endl;
     cerr << "the number of filtered sgRNAs is  " << seed_hash.size() << endl;
+*/
+    string x = "CTTGATTG";
+    cerr << "string2int(CTTGATTG) = " << string2int(x) << endl;
+    cerr << "int2string(x)        = " << int2string(string2int(x), 8) << endl;
 
     
 
