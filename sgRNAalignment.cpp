@@ -69,9 +69,11 @@ std::ostream&
 operator<<(std::ostream& the_stream, const sgRNA &sgrna){
 
   the_stream << sgrna.seq << endl;
+  
   for(size_t i = 0; i < sgrna.matches.size(); i++){
     the_stream << sgrna.matches[i] << endl;
   }
+  
   
   return the_stream;
 }
@@ -339,9 +341,11 @@ propose_sgRNAs(const bool VERBOSE,
                const string PAM,
                const string region_seq,
                const size_t len_sgRNA,
+               size_t &n_forward,
+               size_t &n_rev_comp,
                vector<sgRNA> &possible_sgRNAs){
 
-  string region_seq_rev_comp = reverse_complement(region_seq);
+ // string region_seq_rev_comp = reverse_complement(region_seq);
   string rev_PAM = reverse_complement(PAM);
 
   const size_t PAM_len = PAM.size();
@@ -358,9 +362,11 @@ propose_sgRNAs(const bool VERBOSE,
       if(test_seq == PAM){
         possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len), false));
       }
-      test_seq = region_seq_rev_comp.substr(i, PAM_len);
+    }
+    for(size_t i = 0; i < region_seq.size() - len_sgRNA - PAM_len; i++){
+      string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq == rev_PAM){
-        possible_sgRNAs.push_back(sgRNA(region_seq_rev_comp.substr(i, len_sgRNA + PAM_len), true));
+        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA + PAM_len), true));
       }
     }
   }
@@ -368,22 +374,24 @@ propose_sgRNAs(const bool VERBOSE,
     if(VERBOSE){
       cerr << "wildcard detected" << endl;
     }
-    size_t last_wildcard_pos = PAM.find_last_not_of("ACGT");
+    // size_t last_wildcard_pos = PAM.find_last_not_of("ACGT");
     // test for more than one wildcard
-    if(first_wildcard_pos != last_wildcard_pos){
-      throw SMITHLABException("more than one wildcard found in PAM");
-    }
+    // if(first_wildcard_pos != last_wildcard_pos){
+    //   throw SMITHLABException("more than one wildcard found in PAM");
+    // }
     
     for(size_t i = len_sgRNA; i < region_seq.size() - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
       if(wildcard_seq_match(test_seq.c_str(), PAM.c_str())){
         possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len), false));
+        ++n_forward;
       }
     }
-    for(size_t i = 0; i < region_seq_rev_comp.size() - len_sgRNA - PAM_len; i++){
-      string test_seq = region_seq_rev_comp.substr(i, PAM_len);
+    for(size_t i = 0; i < region_seq.size() - len_sgRNA - PAM_len; i++){
+      string test_seq = region_seq.substr(i, PAM_len);
       if(wildcard_seq_match(test_seq.c_str(), rev_PAM.c_str())){
-        possible_sgRNAs.push_back(sgRNA(region_seq_rev_comp.substr(i, len_sgRNA + PAM_len), true));
+        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA + PAM_len), true));
+        ++n_rev_comp;
       }
     }
   }
@@ -408,6 +416,7 @@ build_seed_hash(const bool VERBOSE,
       seed_seq = possible_sgRNAs[i].seq.substr(possible_sgRNAs[i].seq.size()
                                               - PAM.size() - seed_length,
                                                seed_length);
+
     }
     key = string2int(seed_seq);
     if(VERBOSE){
@@ -483,7 +492,23 @@ load_chrom(const bool VERBOSE,
 }
 
 
-
+void
+add_match(const bool VERBOSE,
+          const string chrom_name,
+          const int edit_dist,
+          const size_t start_pos,
+          const size_t end_pos,
+          const char strand,
+          SeedHash::iterator &it){
+  MappedRead match;
+  match.seq = it->second.seq;
+  match.scr = edit_dist;
+  GenomicRegion gr = GenomicRegion(chrom_name,
+                                   start_pos, end_pos);
+  gr.set_strand(strand);
+  match.r = gr;
+  it->second.matches.push_back(match);
+}
 
 int
 main(const int argc, const char **argv) {
@@ -560,9 +585,11 @@ main(const int argc, const char **argv) {
     }
     
     vector<sgRNA> possible_sgRNAs;
+    size_t n_forward = 0;
+    size_t n_rev_comp = 0;
     for(size_t i = 0; i < seqs.size(); i++)
-      propose_sgRNAs(false, PAM_seq, seqs[i], len_sgRNA, possible_sgRNAs);
- /*
+      propose_sgRNAs(false, PAM_seq, seqs[i], len_sgRNA, n_forward, n_rev_comp, possible_sgRNAs);
+ 
     cerr << "# possible sgRNAs = " << possible_sgRNAs.size() << endl;
     if(VERBOSE){
       cerr << "proposed sgRNAs:" << endl;
@@ -570,10 +597,10 @@ main(const int argc, const char **argv) {
         cerr << possible_sgRNAs[i] << endl;
       }
     }
-*/
+
     
     SeedHash seed_hash;
-    build_seed_hash(VERBOSE, seed_length, PAM_seq, possible_sgRNAs, seed_hash);
+    build_seed_hash(false, seed_length, PAM_seq, possible_sgRNAs, seed_hash);
     if(VERBOSE){
       cerr << "seed hash table size = " << seed_hash.size() << endl;
     }
@@ -592,7 +619,8 @@ main(const int argc, const char **argv) {
     }
     assert(chroms.size() == chrom_names.size());
 
-    size_t n_hits = 0;
+    size_t n_forward_hits = 0;
+    size_t n_rev_comp_hits = 0;
 
     // loop over chroms
     for(size_t i = 0; i < chroms.size(); i++){
@@ -612,20 +640,21 @@ main(const int argc, const char **argv) {
             cerr << "match for " << hash_val << " found at " << iter << endl;
             cerr << "seq = " << chroms[i].substr(iter, seed_length) << endl;
             cerr << "int2string = " << int2string(hash_val, seed_length) << endl;
+            cerr << "surrounding seq = " << chroms[i].substr(iter - PAM_len, seed_length + 2*PAM_len) << endl;
           }
           // test PAM for forward match
           if( (iter >= len_sgRNA) &&
-              (MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len),
+              (MismatchWildcardMetric(chroms[i].substr(iter + seed_length, PAM_len),
                                     PAM_seq) == 0)){
-            n_hits++;
+            n_forward_hits++;
             
             std::pair<SeedHash::iterator, SeedHash::iterator>
               matches = seed_hash.equal_range(hash_val);
             for(SeedHash::iterator it = matches.first;
                 it != matches.second; it++){
-              string test_seq = chroms[i].substr(iter, len_sgRNA);
+              string test_seq = chroms[i].substr(iter - len_sgRNA + seed_length, len_sgRNA);
               cerr << "proposed sgRNA = " << it->second.seq << endl;
-              cerr << "full sequence  = " << chroms[i].substr(iter, len_sgRNA + PAM_len) << endl;
+              cerr << "full sequence  = " << chroms[i].substr(iter - len_sgRNA + seed_length, len_sgRNA + PAM_len) << endl;
               int d = LevenshteinWildcardMetric(test_seq,
                                                 it->second.seq.substr(0, len_sgRNA));
               cerr << "edit distance  = " << d << endl;
@@ -635,85 +664,108 @@ main(const int argc, const char **argv) {
                   seed_hash.erase(it);
                 }
                 else{
-                  MappedRead match;
-                  match.seq = it->second.seq;
-                  match.scr = d;
-                  GenomicRegion gr = GenomicRegion(chrom_names[i],
-                                                   iter + PAM_len + 1,
-                                                   iter + PAM_len + len_sgRNA);
-                  gr.set_strand('-');
-                  match.r = gr;
-                  it->second.matches.push_back(match);
+                  cerr << "matches before:" << endl;
+                  for(size_t j = 0; j < it->second.matches.size(); j++){
+                    cerr << it->second.matches[i] << endl;
+                  }
+                  cerr << endl;
+                  add_match(VERBOSE, chrom_names[i], d, iter + seed_length - len_sgRNA,
+                            iter + PAM_len + seed_length, '-', it);
+                  cerr << "matches after:" << endl;
+                  for(size_t j = 0; j < it->second.matches.size(); j++){
+                    cerr << it->second.matches[i] << endl;
+                  }
+                  cerr << endl;
                 }
               }
               // if d > edit_dist, keep sgRNA
+              /*
               else{
-                MappedRead match;
-                match.seq = it->second.seq;
-                match.scr = d;
-                GenomicRegion gr = GenomicRegion(chrom_names[i],
-                                                 iter + 1,
-                                                 iter + len_sgRNA);
-                gr.set_strand('+');
-                match.r = gr;
-                it->second.matches.push_back(match);
+                cerr << "matches before:" << endl;
+                for(size_t j = 0; j < it->second.matches.size(); j++){
+                  cerr << it->second.matches[i] << endl;
+                }
+                cerr << endl;
+                add_match(VERBOSE, chrom_names[i], d, iter + seed_length - len_sgRNA,
+                          iter + PAM_len + seed_length, '-', it);
+                cerr << "matches after:" << endl;
+                for(size_t j = 0; j < it->second.matches.size(); j++){
+                  cerr << it->second.matches[i] << endl;
+                }
+                cerr << endl;
               }
+               */
             }
           }
         // test PAM for reverse match
           if( (iter > PAM_len) &&
-               (MismatchWildcardMetric(reverse_complement(chroms[i].substr(iter, PAM_len)),
+               (MismatchWildcardMetric(reverse_complement(chroms[i].substr(iter - PAM_len, PAM_len)),
                                        PAM_rev_comp) == 0)){
-            if(seed_hash.find(hash_val) != seed_hash.end()){
-              if(VERBOSE){
-                cerr << "reverse complement match for " << hash_val << " found at " << iter << endl;
-                cerr << "seq = " << reverse_complement(chroms[i].substr(iter + PAM_len, seed_length)) << endl;
-              }
-              n_hits++;
-              std::pair<SeedHash::iterator, SeedHash::iterator>
-              matches = seed_hash.equal_range(hash_val);
-              for(SeedHash::iterator it = matches.first;
-                  it != matches.second; it++){
-                string test_seq = reverse_complement(chroms[i].substr(iter + PAM_len, len_sgRNA));
-                cerr << "proposed sgRNA = " << it->second.seq << endl;
-                cerr << "full seq =       " << chroms[i].substr(iter, len_sgRNA + PAM_len) << endl;
+            if(VERBOSE){
+              cerr << "reverse complement match for " << hash_val << " found at " << iter << endl;
+              cerr << "seq = " << chroms[i].substr(iter, seed_length) << endl;
+            }
+            n_rev_comp_hits++;
+            std::pair<SeedHash::iterator, SeedHash::iterator>
+            matches = seed_hash.equal_range(hash_val);
+            for(SeedHash::iterator it = matches.first;
+                it != matches.second; it++){
+              string test_seq = reverse_complement(chroms[i].substr(iter + PAM_len, len_sgRNA));
+              cerr << "proposed sgRNA = " << it->second.seq << endl;
+              cerr << "full seq =       " << chroms[i].substr(iter - PAM_len, len_sgRNA + PAM_len) << endl;
               
-                int d = LevenshteinWildcardMetric(test_seq,
-                                                  it->second.seq.substr(0, len_sgRNA));
-                cerr << "edit distance  = " << d << endl;
-                if(d <= edit_dist){
+              int d = LevenshteinWildcardMetric(test_seq,
+                                                it->second.seq.substr(0, len_sgRNA));
+              cerr << "edit distance  = " << d << endl;
+              if(d <= edit_dist){
                 // remove sgRNA if there is more than one match
-                  if(it->second.matches.size() > 1){
-                    seed_hash.erase(it);
-                  }
-                  else{
-                    MappedRead match;
-                    match.seq = it->second.seq;
-                    match.scr = d;
-                    GenomicRegion gr = GenomicRegion(chrom_names[i],
-                                                     iter + PAM_len + 1,
-                                                     iter + PAM_len + len_sgRNA);
-                    gr.set_strand('-');
-                    match.r = gr;
-                    it->second.matches.push_back(match);
-                  }
+                if(it->second.matches.size() > 1){
+                  seed_hash.erase(it);
                 }
-              // if d > edit_dist, keep sgRNA
                 else{
-                  MappedRead match;
-                  match.seq = it->second.seq;
-                  match.scr = d;
-                  GenomicRegion gr = GenomicRegion(chrom_names[i],
-                                                   iter + PAM_len + 1,
-                                                   iter + PAM_len + len_sgRNA);
-                  gr.set_strand('-');
-                  match.r = gr;
-                  it->second.matches.push_back(match);
+                  if(VERBOSE){
+                    cerr << "matches before:" << endl;
+                    for(size_t j = 0; j < it->second.matches.size(); j++){
+                      cerr << it->second.matches[i] << endl;
+                    }
+                    cerr << endl;
+                  }
+                  add_match(VERBOSE, chrom_names[i], d, iter - PAM_len,
+                            iter + len_sgRNA, '-', it);
+                  if(VERBOSE){
+                    cerr << "matches after:" << endl;
+                    for(size_t j = 0; j < it->second.matches.size(); j++){
+                      cerr << it->second.matches[i] << endl;
+                    }
+                    cerr << endl;
+                  }
                 }
               }
+              // if d > edit_dist, keep sgRNA
+              /*
+              else{
+                if(VERBOSE){
+                  cerr << "matches before:" << endl;
+                  for(size_t j = 0; j < it->second.matches.size(); j++){
+                    cerr << it->second.matches[i] << endl;
+                  }
+                  cerr << endl;
+                }
+                add_match(VERBOSE, chrom_names[i], d, iter - PAM_len,
+                          iter + len_sgRNA, '-', it);
+                if(VERBOSE){
+                  cerr << "matches after:" << endl;
+                  for(size_t j = 0; j < it->second.matches.size(); j++){
+                    cerr << it->second.matches[i] << endl;
+                  }
+                  cerr << endl;
+              }
+               */
+
             }
           }
         }
+
         // update hash vals for RabinKarp after checking
         hash_val =
         updateHashValForward(hash_val, seed_length,
@@ -736,7 +788,11 @@ main(const int argc, const char **argv) {
     
     cerr << "the number of proposed sgRNAs was " << possible_sgRNAs.size() << endl;
     cerr << "the number of filtered sgRNAs is  " << seed_hash.size() << endl;
-    cerr << "number of hits = " << n_hits << endl;
+    cerr << "number of forward sgRNAs = " << n_forward << endl;
+    cerr << "number of rev comp sgRNAs = " << n_rev_comp << endl;
+    cerr << "number of foward hits = " << n_forward_hits << endl;
+    cerr << "number of backward hits = " << n_rev_comp_hits << endl;
+    cerr << "hash table:" << endl;
  /*
     for(SeedHash::iterator i = seed_hash.begin(); i != seed_hash.end(); i++){
       cerr << i->first << '\t' << i->second << endl;
