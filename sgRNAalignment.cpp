@@ -60,10 +60,21 @@ struct sgRNA {
   sgRNA(const string s, const size_t k, const bool rc) {seq = s; key = k; rev_comp = rc;}
   
   string seq;
-  size_t key;
+  int key;
   bool rev_comp;
   vector<MappedRead> matches;
 };
+
+std::ostream&
+operator<<(std::ostream& the_stream, const sgRNA &sgrna){
+
+  the_stream << sgrna.seq << endl;
+  for(size_t i = 0; i < sgrna.matches.size(); i++){
+    the_stream << sgrna.matches[i] << endl;
+  }
+  
+  return the_stream;
+}
 
 typedef unordered_multimap<size_t, sgRNA> SeedHash;
 
@@ -154,7 +165,6 @@ int2string(const int input_int,
   int remainder = input_int;
   string i2s;
   i2s.resize(string_length, 'A');
-  size_t iter = 0;
   for(size_t i = string_length; i > 0; i--){
     int divisor = 1 << 2*(i - 1);
     i2s[i - 1] = int2base(remainder/divisor);
@@ -188,15 +198,18 @@ updateHashValForward(const size_t prev_val,
   return next_val;
 }
 
+/*
 inline size_t
 updateHashValReverseComp(const size_t prev_val,
                          const size_t seed_length,
-                         const char start_char,
+                         const char prev_char,
                          const char next_char){
-  const char start_char_comp = complement(to_upper(start_char));
+  const char prev_char_comp = complement(to_upper(prev_char));
   const char next_char_comp = complement(to_upper(next_char));
+
   // next_val = (prev_val - 4^(seed_length - 1)*base2int(start_char_comp))*4 + base2int(next_char_comp)
-  size_t next_val = prev_val - (1 << 2*(seed_length - 1))*base2int(start_char_comp);
+  size_t next_val = prev_val - (1 << 2*(seed_length - 1))*base2int(prev_char_comp);
+  
   // multiply by 4 using bit shift
   next_val <<= 2;
   // add next char
@@ -204,6 +217,7 @@ updateHashValReverseComp(const size_t prev_val,
   //  next_val = next_val % modulus; // if modulus = max size_t, comment this out
   return next_val;
 }
+ */
 
 string
 reverse_complement(const string seq){
@@ -233,7 +247,7 @@ LevenshteinWildcardMetric(const string &s1,
     for(size_t j = 1; j < dist[0].size(); j++){
       dist[i][j] = min(dist[i-1][j] + 1,
                        min(dist[i][j-1] + 1,
-                           dist[i-1][j-1] + ((s1[i-1] == s2[j-1]
+                           dist[i-1][j-1] + ((to_upper(s1[i-1]) == to_upper(s2[j-1])
                                               || s1[i-1] == 'N'
                                               || s2[j-1] == 'N') ? 0:1)));
     }
@@ -257,16 +271,6 @@ MismatchWildcardMetric(const string &s1,
 }
 
 
-
-std::ostream&
-operator<<(std::ostream& the_stream, const sgRNA &sgrna){
-//  if(sgrna.rev_comp)
-//    the_stream << reverse_complement(sgrna.seq);
-//  else
-    the_stream << sgrna.seq;
-  
-  return the_stream;
-}
 
 
 size_t
@@ -303,10 +307,6 @@ read_fasta_batch(const string &input_file_name,
   
   return n_regions;
 }
-
-
-
-
 
 
 bool
@@ -402,7 +402,6 @@ build_seed_hash(const bool VERBOSE,
     string seed_seq;
     size_t key;
     if(possible_sgRNAs[i].rev_comp){
-      // working with reverse complement
       seed_seq = possible_sgRNAs[i].seq.substr(3, seed_length);
     }
     else{
@@ -419,6 +418,7 @@ build_seed_hash(const bool VERBOSE,
   }
 }
 
+/*
 void
 remove_duplicate_sgRNAs(const bool VERBOSE,
                         const size_t len_sgRNA,
@@ -432,7 +432,7 @@ remove_duplicate_sgRNAs(const bool VERBOSE,
   
   for(SeedHash::iterator hashit = seed_hash.begin();
       hashit != seed_hash.end(); hashit = upper_bound){
-    cerr << "hash load = " << seed_hash.count(hashit->first) << endl;
+    //cerr << "hash load = " << seed_hash.count(hashit->first) << endl;
     if(seed_hash.count(hashit->first) > 1){
       // more than one entry with the same key hashit->first
       vector<string> duplicate_hashes;
@@ -442,7 +442,7 @@ remove_duplicate_sgRNAs(const bool VERBOSE,
         duplicate_hashes.push_back(it->second.seq.substr(0, len_sgRNA));
         n_entries++;
       }
-      cerr << "number of duplicate hashes = " << duplicate_hashes.size() << endl;
+      //cerr << "number of duplicate hashes = " << duplicate_hashes.size() << endl;
       upper_bound = duplicate_iterator.second;
     }
     else{
@@ -451,9 +451,9 @@ remove_duplicate_sgRNAs(const bool VERBOSE,
     }
     hash_count++;
   }
-  cerr << "went through " << hash_count << " keys and " << n_entries << " entries" << endl;
+  //cerr << "went through " << hash_count << " keys and " << n_entries << " entries" << endl;
 }
-
+*/
 
 // return true if we encounter a new chromosome
 // else return false
@@ -561,8 +561,8 @@ main(const int argc, const char **argv) {
     
     vector<sgRNA> possible_sgRNAs;
     for(size_t i = 0; i < seqs.size(); i++)
-      propose_sgRNAs(VERBOSE, PAM_seq, seqs[i], len_sgRNA, possible_sgRNAs);
-    
+      propose_sgRNAs(false, PAM_seq, seqs[i], len_sgRNA, possible_sgRNAs);
+ /*
     cerr << "# possible sgRNAs = " << possible_sgRNAs.size() << endl;
     if(VERBOSE){
       cerr << "proposed sgRNAs:" << endl;
@@ -570,6 +570,7 @@ main(const int argc, const char **argv) {
         cerr << possible_sgRNAs[i] << endl;
       }
     }
+*/
     
     SeedHash seed_hash;
     build_seed_hash(VERBOSE, seed_length, PAM_seq, possible_sgRNAs, seed_hash);
@@ -577,7 +578,8 @@ main(const int argc, const char **argv) {
       cerr << "seed hash table size = " << seed_hash.size() << endl;
     }
     
-    remove_duplicate_sgRNAs(VERBOSE, len_sgRNA, seed_length, seed_hash);
+    // do we need to remove duplicate sgRNAs?
+  //  remove_duplicate_sgRNAs(VERBOSE, len_sgRNA, seed_length, seed_hash);
     
     vector<string> chroms;
     vector<string> chrom_names;
@@ -590,46 +592,41 @@ main(const int argc, const char **argv) {
     }
     assert(chroms.size() == chrom_names.size());
 
-    /*
+    size_t n_hits = 0;
+
     // loop over chroms
     for(size_t i = 0; i < chroms.size(); i++){
       size_t iter = chroms[i].find_first_not_of("Nn");
-      size_t forward_hash_val = string2int(chroms[i].substr(iter + len_sgRNA - seed_length, seed_length));
-      size_t rev_comp_hash_val =
-        string2int(reverse_complement(chroms[i].substr(iter, seed_length)));
+      iter += PAM_len;
+      size_t hash_val = string2int(chroms[i].substr(iter, seed_length));
       if(VERBOSE){
-        cerr << "forward_hash_val = " << forward_hash_val << endl;
-        cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length, seed_length) << endl;
-        cerr << "rev_comp_hash_val = " << rev_comp_hash_val << endl;
-        cerr << "seq = " << reverse_complement(chroms[i].substr(iter, seed_length)) << endl;
+        cerr << "iter = " << iter << endl;
+        cerr << "hash_val = " << hash_val << endl;
+        cerr << "seq = " << chroms[i].substr(iter, seed_length) << endl;
       }
       
       do{
 
-     
-        if(VERBOSE){
-          cerr << "forward_hash_val = " << forward_hash_val << endl;
-          cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length + 1, seed_length) << endl;
-          cerr << "rev_comp_hash_val = " << rev_comp_hash_val << endl;
-          cerr << "seq = " << reverse_complement(chroms[i].substr(iter + 1, seed_length)) << endl;
-        }
-     
-        if(MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len),
-                                  PAM_seq) == 0){
-          if(seed_hash.find(forward_hash_val) != seed_hash.end()){
-            if(VERBOSE){
-              cerr << "forward match for " << forward_hash_val << " found at " << iter << endl;
-              
-              cerr << "seq = " << chroms[i].substr(iter + len_sgRNA - seed_length + 1, seed_length) << endl;
-            }
+        if(seed_hash.find(hash_val) != seed_hash.end()){
+          if(VERBOSE){
+            cerr << "match for " << hash_val << " found at " << iter << endl;
+            cerr << "seq = " << chroms[i].substr(iter, seed_length) << endl;
+            cerr << "int2string = " << int2string(hash_val, seed_length) << endl;
+          }
+          // test PAM for forward match
+          if( (iter >= len_sgRNA) &&
+              (MismatchWildcardMetric(chroms[i].substr(iter + len_sgRNA, PAM_len),
+                                    PAM_seq) == 0)){
+            n_hits++;
             
             std::pair<SeedHash::iterator, SeedHash::iterator>
-              matches = seed_hash.equal_range(forward_hash_val);
+              matches = seed_hash.equal_range(hash_val);
             for(SeedHash::iterator it = matches.first;
                 it != matches.second; it++){
+              string test_seq = chroms[i].substr(iter, len_sgRNA);
               cerr << "proposed sgRNA = " << it->second.seq << endl;
-              cerr << "full sequence  = " << chroms[i].substr(iter + 1, len_sgRNA) << endl;
-              int d = LevenshteinWildcardMetric(chroms[i].substr(iter, len_sgRNA),
+              cerr << "full sequence  = " << chroms[i].substr(iter, len_sgRNA + PAM_len) << endl;
+              int d = LevenshteinWildcardMetric(test_seq,
                                                 it->second.seq.substr(0, len_sgRNA));
               cerr << "edit distance  = " << d << endl;
               if(d <= edit_dist){
@@ -663,29 +660,45 @@ main(const int argc, const char **argv) {
               }
             }
           }
-        }
-        if(MismatchWildcardMetric(reverse_complement(chroms[i].substr(iter, PAM_len)),
-                                  PAM_rev_comp) == 0){
-          if(seed_hash.find(rev_comp_hash_val) != seed_hash.end()){
-            if(VERBOSE){
-              cerr << "reverse complement match for " << rev_comp_hash_val << " found at " << iter << endl;
-              cerr << "seq = " << reverse_complement(chroms[i].substr(iter, seed_length)) << endl;
-            }
-            std::pair<SeedHash::iterator, SeedHash::iterator>
-            matches = seed_hash.equal_range(rev_comp_hash_val);
-            for(SeedHash::iterator it = matches.first;
-                it != matches.second; it++){
-              cerr << "proposed sgRNA = " << it->second.seq << endl;
-              cerr << "full seq =       " << reverse_complement(chroms[i].substr(iter + PAM_len, len_sgRNA)) << endl;
+        // test PAM for reverse match
+          if( (iter > PAM_len) &&
+               (MismatchWildcardMetric(reverse_complement(chroms[i].substr(iter, PAM_len)),
+                                       PAM_rev_comp) == 0)){
+            if(seed_hash.find(hash_val) != seed_hash.end()){
+              if(VERBOSE){
+                cerr << "reverse complement match for " << hash_val << " found at " << iter << endl;
+                cerr << "seq = " << reverse_complement(chroms[i].substr(iter + PAM_len, seed_length)) << endl;
+              }
+              n_hits++;
+              std::pair<SeedHash::iterator, SeedHash::iterator>
+              matches = seed_hash.equal_range(hash_val);
+              for(SeedHash::iterator it = matches.first;
+                  it != matches.second; it++){
+                string test_seq = reverse_complement(chroms[i].substr(iter + PAM_len, len_sgRNA));
+                cerr << "proposed sgRNA = " << it->second.seq << endl;
+                cerr << "full seq =       " << chroms[i].substr(iter, len_sgRNA + PAM_len) << endl;
               
-              int d = LevenshteinWildcardMetric(reverse_complement(chroms[i].substr(iter + PAM_len, len_sgRNA)),
-                                                it->second.seq.substr(0, len_sgRNA));
-              cerr << "edit distance  = " << d << endl;
-              if(d <= edit_dist){
+                int d = LevenshteinWildcardMetric(test_seq,
+                                                  it->second.seq.substr(0, len_sgRNA));
+                cerr << "edit distance  = " << d << endl;
+                if(d <= edit_dist){
                 // remove sgRNA if there is more than one match
-                if(it->second.matches.size() > 1){
-                  seed_hash.erase(it);
+                  if(it->second.matches.size() > 1){
+                    seed_hash.erase(it);
+                  }
+                  else{
+                    MappedRead match;
+                    match.seq = it->second.seq;
+                    match.scr = d;
+                    GenomicRegion gr = GenomicRegion(chrom_names[i],
+                                                     iter + PAM_len + 1,
+                                                     iter + PAM_len + len_sgRNA);
+                    gr.set_strand('-');
+                    match.r = gr;
+                    it->second.matches.push_back(match);
+                  }
                 }
+              // if d > edit_dist, keep sgRNA
                 else{
                   MappedRead match;
                   match.seq = it->second.seq;
@@ -698,47 +711,38 @@ main(const int argc, const char **argv) {
                   it->second.matches.push_back(match);
                 }
               }
-              // if d > edit_dist, keep sgRNA
-              else{
-                MappedRead match;
-                match.seq = it->second.seq;
-                match.scr = d;
-                GenomicRegion gr = GenomicRegion(chrom_names[i],
-                                                 iter + PAM_len + 1,
-                                                 iter + PAM_len + len_sgRNA);
-                gr.set_strand('-');
-                match.r = gr;
-                it->second.matches.push_back(match);
-              }
             }
           }
         }
         // update hash vals for RabinKarp after checking
-        forward_hash_val =
-        updateHashValForward(forward_hash_val, seed_length,
-                             chroms[i][iter + len_sgRNA - seed_length],
-                             chroms[i][iter + len_sgRNA]);
-        rev_comp_hash_val =
-        updateHashValReverseComp(rev_comp_hash_val, seed_length,
-                                 chroms[i][iter],
-                                 chroms[i][iter + seed_length]);
+        hash_val =
+        updateHashValForward(hash_val, seed_length,
+                             chroms[i][iter],
+                             chroms[i][iter + seed_length]);
+        /*
+        hash_val =
+        updateHashValReverseComp(hash_val, seed_length,
+                                 chroms[i][iter + PAM_len],
+                                 chroms[i][iter + PAM_len + seed_length]);
+         */
         iter++;
-        
 
       //  cerr << "iter = " << iter << endl;
         // what to do when you reach an N?
       }while(iter < chroms[i].length() - len_sgRNA - PAM_len && chroms[i][iter + len_sgRNA] != 'N');
+      cerr << "number of bases iterated over = " << iter << endl;
+
     }
     
     cerr << "the number of proposed sgRNAs was " << possible_sgRNAs.size() << endl;
     cerr << "the number of filtered sgRNAs is  " << seed_hash.size() << endl;
+    cerr << "number of hits = " << n_hits << endl;
+ /*
+    for(SeedHash::iterator i = seed_hash.begin(); i != seed_hash.end(); i++){
+      cerr << i->first << '\t' << i->second << endl;
+    }
 */
-    string x = "CTTGATTG";
-    cerr << "string2int(CTTGATTG) = " << string2int(x) << endl;
-    cerr << "int2string(x)        = " << int2string(string2int(x), 8) << endl;
-
     
-
   }
   catch (SMITHLABException &e) {
     cerr << "ERROR:\t" << e.what() << endl;
