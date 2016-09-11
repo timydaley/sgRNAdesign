@@ -699,7 +699,7 @@ main(const int argc, const char **argv) {
           }
         // test PAM for reverse match
           if( (iter > PAM_len) &&
-               (MismatchWildcardMetric(reverse_complement(chroms[i].substr(iter - PAM_len, PAM_len)),
+               (MismatchWildcardMetric(chroms[i].substr(iter - PAM_len, PAM_len),
                                        PAM_rev_comp) == 0)){
             if(VERBOSE){
               cerr << "reverse complement match for " << hash_val << " found at " << iter << endl;
