@@ -679,22 +679,6 @@ main(const int argc, const char **argv) {
                 }
               }
               // if d > edit_dist, keep sgRNA
-              /*
-              else{
-                cerr << "matches before:" << endl;
-                for(size_t j = 0; j < it->second.matches.size(); j++){
-                  cerr << it->second.matches[i] << endl;
-                }
-                cerr << endl;
-                add_match(VERBOSE, chrom_names[i], d, iter + seed_length - len_sgRNA,
-                          iter + PAM_len + seed_length, '-', it);
-                cerr << "matches after:" << endl;
-                for(size_t j = 0; j < it->second.matches.size(); j++){
-                  cerr << it->second.matches[i] << endl;
-                }
-                cerr << endl;
-              }
-               */
             }
           }
         // test PAM for reverse match
@@ -710,13 +694,15 @@ main(const int argc, const char **argv) {
             matches = seed_hash.equal_range(hash_val);
             for(SeedHash::iterator it = matches.first;
                 it != matches.second; it++){
-              string test_seq = reverse_complement(chroms[i].substr(iter + PAM_len, len_sgRNA));
+              string test_seq = chroms[i].substr(iter, len_sgRNA) ;
               cerr << "proposed sgRNA = " << it->second.seq << endl;
               cerr << "full seq =       " << chroms[i].substr(iter - PAM_len, len_sgRNA + PAM_len) << endl;
               
               int d = LevenshteinWildcardMetric(test_seq,
-                                                it->second.seq.substr(0, len_sgRNA));
+                                                it->second.seq.substr(3, len_sgRNA));
               cerr << "edit distance  = " << d << endl;
+              cerr << it->second.seq.substr(3, len_sgRNA) << endl;
+              cerr << test_seq << endl;
               if(d <= edit_dist){
                 // remove sgRNA if there is more than one match
                 if(it->second.matches.size() > 1){
@@ -742,26 +728,6 @@ main(const int argc, const char **argv) {
                 }
               }
               // if d > edit_dist, keep sgRNA
-              /*
-              else{
-                if(VERBOSE){
-                  cerr << "matches before:" << endl;
-                  for(size_t j = 0; j < it->second.matches.size(); j++){
-                    cerr << it->second.matches[i] << endl;
-                  }
-                  cerr << endl;
-                }
-                add_match(VERBOSE, chrom_names[i], d, iter - PAM_len,
-                          iter + len_sgRNA, '-', it);
-                if(VERBOSE){
-                  cerr << "matches after:" << endl;
-                  for(size_t j = 0; j < it->second.matches.size(); j++){
-                    cerr << it->second.matches[i] << endl;
-                  }
-                  cerr << endl;
-              }
-               */
-
             }
           }
         }
@@ -792,12 +758,21 @@ main(const int argc, const char **argv) {
     cerr << "number of rev comp sgRNAs = " << n_rev_comp << endl;
     cerr << "number of foward hits = " << n_forward_hits << endl;
     cerr << "number of backward hits = " << n_rev_comp_hits << endl;
-    cerr << "hash table:" << endl;
- /*
+    cerr << "hit sgRNAs in hash table:" << endl;
+
     for(SeedHash::iterator i = seed_hash.begin(); i != seed_hash.end(); i++){
-      cerr << i->first << '\t' << i->second << endl;
+      if(i->second.matches.size() > 0){
+        cerr << i->first << '\t' << i->second << endl;
+      }
     }
-*/
+    
+    cerr << endl;
+    cerr << "un-hit sgRNAs in hash table:" << endl;
+    for(SeedHash::iterator i = seed_hash.begin(); i != seed_hash.end(); i++){
+      if(i->second.matches.size() == 0){
+        cerr << i->first << '\t' << i->second << endl;
+      }
+    }
     
   }
   catch (SMITHLABException &e) {

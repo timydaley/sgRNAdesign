@@ -1,9 +1,9 @@
 source("https://bioconductor.org/biocLite.R")
-biocLite("Biostrings")
+biocLite("Biostrings", suppressUpdates=TRUE)
 biocLite("BSgenome.Hsapiens.UCSC.hg38", suppressUpdates=TRUE)
 library(BSgenome.Hsapiens.UCSC.hg38)
 library(Biostrings)
-biocLite("biomaRt")
+biocLite("biomaRt", suppressUpdates=TRUE)
 library(biomaRt)
 install.packages("seqinr", repos = "http://cran.r-project.org")
 library(seqinr)
@@ -26,7 +26,7 @@ seqs = c()
 for(i in 1:length(start_pos)){
 	seqs = c(seqs, getSeq(hg38, wanted_ranges[i], as.character=TRUE))
 }
-tss_seqs = list(genes = tss_map$hgnc_symbol, seqs = seqs, tss = tss_map$transcript_start)
+tss_seqs = data.frame(genes = tss_map$hgnc_symbol, seqs = seqs, tss = tss_map$transcript_start)
 
 write_seqs <- function(seqs, gene_names, tss, filename){
 	stopifnot(dim(seqs)[1] == length(gene_names))
