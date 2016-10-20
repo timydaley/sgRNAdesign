@@ -68,8 +68,8 @@ struct sgRNA {
 std::ostream&
 operator<<(std::ostream& the_stream, const sgRNA &sgrna){
 
-  the_stream << sgrna.seq << endl;
-  
+  the_stream << "sgRNA: " << sgrna.seq << endl;
+  the_stream << "matches: " << endl;
   for(size_t i = 0; i < sgrna.matches.size(); i++){
     the_stream << sgrna.matches[i] << endl;
   }
@@ -79,6 +79,22 @@ operator<<(std::ostream& the_stream, const sgRNA &sgrna){
 }
 
 typedef unordered_multimap<size_t, sgRNA> SeedHash;
+
+inline bool
+is_genomic_base(char n){
+  switch(n){
+    case 'A':
+      return true;
+    case 'C':
+      return true;
+    case 'G':
+      return true;
+    case 'T':
+      return true;
+    default:
+      return false;
+  }
+}
 
 inline char
 complement(char n){
@@ -182,7 +198,6 @@ updateHashValForward(const size_t prev_val,
                      const char start_char,
                      const char next_char){
   // next_val = (prev_val - (seq[0] * base^(seq.size() - 1))) * base + base2int(next_char) mod modulus
-  // precompute = base^(seq.size() - 1)
   size_t next_val = prev_val - base2int(start_char);
   // make sure bit shifting will work correctly
   if(!(next_val % 4 == 0)){
@@ -200,26 +215,6 @@ updateHashValForward(const size_t prev_val,
   return next_val;
 }
 
-/*
-inline size_t
-updateHashValReverseComp(const size_t prev_val,
-                         const size_t seed_length,
-                         const char prev_char,
-                         const char next_char){
-  const char prev_char_comp = complement(to_upper(prev_char));
-  const char next_char_comp = complement(to_upper(next_char));
-
-  // next_val = (prev_val - 4^(seed_length - 1)*base2int(start_char_comp))*4 + base2int(next_char_comp)
-  size_t next_val = prev_val - (1 << 2*(seed_length - 1))*base2int(prev_char_comp);
-  
-  // multiply by 4 using bit shift
-  next_val <<= 2;
-  // add next char
-  next_val += base2int(next_char_comp);
-  //  next_val = next_val % modulus; // if modulus = max size_t, comment this out
-  return next_val;
-}
- */
 
 string
 reverse_complement(const string seq){
@@ -370,6 +365,7 @@ propose_sgRNAs(const bool VERBOSE,
       }
     }
   }
+  
   else{
     if(VERBOSE){
       cerr << "wildcard detected" << endl;
@@ -382,19 +378,24 @@ propose_sgRNAs(const bool VERBOSE,
     
     for(size_t i = len_sgRNA; i < region_seq.size() - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
-      if(wildcard_seq_match(test_seq.c_str(), PAM.c_str())){
-        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len), false));
-        ++n_forward;
+      if(test_seq.find_first_of("N") == std::string::npos){
+        if(wildcard_seq_match(test_seq.c_str(), PAM.c_str())){
+          possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len), false));
+          ++n_forward;
+        }
       }
     }
     for(size_t i = 0; i < region_seq.size() - len_sgRNA - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
-      if(wildcard_seq_match(test_seq.c_str(), rev_PAM.c_str())){
-        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA + PAM_len), true));
-        ++n_rev_comp;
+      if(test_seq.find_first_of("N") == std::string::npos){
+        if(wildcard_seq_match(test_seq.c_str(), rev_PAM.c_str())){
+          possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA + PAM_len), true));
+          ++n_rev_comp;
+        }
       }
     }
   }
+  
 }
 
 
@@ -591,13 +592,14 @@ main(const int argc, const char **argv) {
       propose_sgRNAs(false, PAM_seq, seqs[i], len_sgRNA, n_forward, n_rev_comp, possible_sgRNAs);
  
     cerr << "# possible sgRNAs = " << possible_sgRNAs.size() << endl;
+    /*
     if(VERBOSE){
       cerr << "proposed sgRNAs:" << endl;
       for(size_t i = 0; i < possible_sgRNAs.size(); i++){
         cerr << possible_sgRNAs[i] << endl;
       }
     }
-
+    */
     
     SeedHash seed_hash;
     build_seed_hash(false, seed_length, PAM_seq, possible_sgRNAs, seed_hash);
@@ -606,7 +608,7 @@ main(const int argc, const char **argv) {
     }
     
     // do we need to remove duplicate sgRNAs?
-  //  remove_duplicate_sgRNAs(VERBOSE, len_sgRNA, seed_length, seed_hash);
+    //  remove_duplicate_sgRNAs(VERBOSE, len_sgRNA, seed_length, seed_hash);
     
     vector<string> chroms;
     vector<string> chrom_names;
@@ -640,7 +642,6 @@ main(const int argc, const char **argv) {
             cerr << "match for " << hash_val << " found at " << iter << endl;
             cerr << "seq = " << chroms[i].substr(iter, seed_length) << endl;
             cerr << "int2string = " << int2string(hash_val, seed_length) << endl;
-            cerr << "surrounding seq = " << chroms[i].substr(iter - PAM_len, seed_length + 2*PAM_len) << endl;
           }
           // test PAM for forward match
           if( (iter >= len_sgRNA) &&
@@ -661,6 +662,9 @@ main(const int argc, const char **argv) {
               if(d <= edit_dist){
                 // remove sgRNA if there is more than one match
                 if(it->second.matches.size() > 1){
+                  if(VERBOSE){
+                    cerr << "erasing entry: " << it->second << endl;
+                  }
                   seed_hash.erase(it);
                 }
                 else{
@@ -706,6 +710,9 @@ main(const int argc, const char **argv) {
               if(d <= edit_dist){
                 // remove sgRNA if there is more than one match
                 if(it->second.matches.size() > 1){
+                  if(VERBOSE){
+                    cerr << "erasing entry: " << it->second << endl;
+                  }
                   seed_hash.erase(it);
                 }
                 else{
@@ -732,28 +739,40 @@ main(const int argc, const char **argv) {
           }
         }
 
-        // update hash vals for RabinKarp after checking
-        hash_val =
-        updateHashValForward(hash_val, seed_length,
-                             chroms[i][iter],
-                             chroms[i][iter + seed_length]);
-        /*
-        hash_val =
-        updateHashValReverseComp(hash_val, seed_length,
-                                 chroms[i][iter + PAM_len],
-                                 chroms[i][iter + PAM_len + seed_length]);
-         */
-        iter++;
+        if(is_genomic_base(to_upper(chroms[i][iter + seed_length]))){
+          // next base is A, C, G, or T
+          // update hash vals for RabinKarp after checking
+          hash_val =
+          updateHashValForward(hash_val, seed_length,
+                               chroms[i][iter],
+                               chroms[i][iter + seed_length]);
+
+          iter++;
+        }
+        else{
+          // next base not a A, C, G, or T
+          // skip to next A, C, G, or T
+          cerr << "encountered non-genomic base at " << iter << endl;
+          iter += seed_length;
+          while(!is_genomic_base(to_upper(chroms[i][iter]))){
+            iter++;
+          }
+          hash_val = string2int(chroms[i].substr(iter, seed_length));
+          cerr << "skip to " << iter << endl;
+          cerr << "new seed = " << chroms[i].substr(iter, seed_length) << endl;
+          cerr << "new hash val = " << hash_val << endl;
+        }
 
       //  cerr << "iter = " << iter << endl;
         // what to do when you reach an N?
-      }while(iter < chroms[i].length() - len_sgRNA - PAM_len && chroms[i][iter + len_sgRNA] != 'N');
+        
+      }while(iter < chroms[i].length() - len_sgRNA - PAM_len);
       cerr << "number of bases iterated over = " << iter << endl;
 
     }
     
     cerr << "the number of proposed sgRNAs was " << possible_sgRNAs.size() << endl;
-    cerr << "the number of filtered sgRNAs is  " << seed_hash.size() << endl;
+    cerr << "the number of sgRNAs remaining after filtering is  " << seed_hash.size() << endl;
     cerr << "number of forward sgRNAs = " << n_forward << endl;
     cerr << "number of rev comp sgRNAs = " << n_rev_comp << endl;
     cerr << "number of foward hits = " << n_forward_hits << endl;
