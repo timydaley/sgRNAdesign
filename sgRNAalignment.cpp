@@ -52,18 +52,35 @@ using std::endl;
 using std::max;
 using std::cerr;
 using std::tr1::unordered_multimap;
+using std::tr1::unordered_map;
+using std::strcmp;
 
 
 struct sgRNA {
   sgRNA () {}
   sgRNA(const string s, const bool rc) {seq = s; rev_comp = rc;}
+  sgRNA(const string s, const string n, const bool rc) {seq = s; target_name = n; rev_comp = rc;}
   sgRNA(const string s, const size_t k, const bool rc) {seq = s; key = k; rev_comp = rc;}
+  sgRNA(const string s, const string n, const size_t k, const bool rc)
+    {seq = s; target_name = n; key = k; rev_comp = rc;}
+
   
   string seq;
+  string target_name;
   int key;
   bool rev_comp;
   vector<MappedRead> matches;
 };
+
+bool
+compare_sgRNA(const sgRNA &one, const sgRNA &two){
+  return (one.seq < two.seq);
+}
+
+bool
+equal_sgRNA_seq(const sgRNA &one, const sgRNA &two){
+  return (one.seq == two.seq);
+}
 
 std::ostream&
 operator<<(std::ostream& the_stream, const sgRNA &sgrna){
@@ -335,6 +352,7 @@ void
 propose_sgRNAs(const bool VERBOSE,
                const string PAM,
                const string region_seq,
+               const string region_name,
                const size_t len_sgRNA,
                size_t &n_forward,
                size_t &n_rev_comp,
@@ -355,13 +373,15 @@ propose_sgRNAs(const bool VERBOSE,
     for(size_t i = len_sgRNA; i < region_seq.size() - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq == PAM){
-        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len), false));
+        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len),
+                                        region_name, false));
       }
     }
     for(size_t i = 0; i < region_seq.size() - len_sgRNA - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq == rev_PAM){
-        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA + PAM_len), true));
+        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA + PAM_len),
+                                        region_name, true));
       }
     }
   }
@@ -428,7 +448,68 @@ build_seed_hash(const bool VERBOSE,
   }
 }
 
-/*
+// idea from http://www.cplusplus.com/forum/general/14268/:
+// build a hash table with key as sgRNA string and
+// value as the occurence count
+// once done building the hash table, iterate through
+// and delete the sgRNAs that have count > 1
+void
+remove_duplicate_sgRNAs(const bool VERBOSE,
+                        const size_t len_sgRNA,
+                        vector<sgRNA> &possible_sgRNAs){
+  if(VERBOSE){
+    cerr << "starting number of sgRNAs: "
+         << possible_sgRNAs.size() << endl;
+  }
+  unordered_map<string, size_t> sgRNA_counts;
+  for(size_t i = 0; i < possible_sgRNAs.size(); i++){
+    // need to cut out PAM
+    string test_seq;
+    // reverse complement: PAM is at start
+    if(possible_sgRNAs[i].rev_comp){
+      test_seq = possible_sgRNAs[i].seq.substr(3, len_sgRNA);
+    }
+    // not reverse complement, PAM is end
+    else{
+      test_seq = possible_sgRNAs[i].seq.substr(0, len_sgRNA);
+    }
+    unordered_map<string, size_t>::iterator it = sgRNA_counts.find(test_seq);
+    // if test_seq is not in hash table, add it
+    if(it == sgRNA_counts.end()){
+      sgRNA_counts.insert(std::make_pair<string, size_t>(test_seq, 1));
+    }
+    // if test_seq is in hash table, update counts
+    else{
+      it->second++;
+    }
+  }
+  
+  // now we have the hash table with counts,
+  // iterate through and delete the sgRNA with count > 1
+  for(size_t i = 0; i < possible_sgRNAs.size(); i++){
+    string test_seq;
+    // reverse complement: PAM is at start
+    if(possible_sgRNAs[i].rev_comp){
+      test_seq = possible_sgRNAs[i].seq.substr(3, len_sgRNA);
+    }
+    // not reverse complement, PAM is end
+    else{
+      test_seq = possible_sgRNAs[i].seq.substr(0, len_sgRNA);
+    }
+    unordered_map<string, size_t>::iterator it = sgRNA_counts.find(test_seq);
+    // if more than 1 copy, delete
+    if(it->second > 1){
+      possible_sgRNAs.erase(possible_sgRNAs.begin() + i);
+    }
+  }
+  if(VERBOSE){
+    cerr << "ending number of sgRNAs: "
+         << possible_sgRNAs.size() << endl;
+  }
+  
+}
+
+
 void
 remove_duplicate_sgRNAs(const bool VERBOSE,
                         const size_t len_sgRNA,
@@ -461,9 +542,9 @@ remove_duplicate_sgRNAs(const bool VERBOSE,
     }
     hash_count++;
   }
-  //cerr << "went through " << hash_count << " keys and " << n_entries << " entries" << endl;
+  cerr << "went through " << hash_count << " keys and " << n_entries << " entries" << endl;
 }
-*/
+
 
 // return true if we encounter a new chromosome
 // else return false
@@ -589,7 +670,7 @@ main(const int argc, const char **argv) {
     size_t n_forward = 0;
     size_t n_rev_comp = 0;
     for(size_t i = 0; i < seqs.size(); i++)
-      propose_sgRNAs(false, PAM_seq, seqs[i], len_sgRNA, n_forward, n_rev_comp, possible_sgRNAs);
+      propose_sgRNAs(false, PAM_seq, seqs[i], names[i], len_sgRNA, n_forward, n_rev_comp, possible_sgRNAs);
  
     cerr << "# possible sgRNAs = " << possible_sgRNAs.size() << endl;
     /*
@@ -599,7 +680,22 @@ main(const int argc, const char **argv) {
         cerr << possible_sgRNAs[i] << endl;
       }
     }
-    */
+     */
+    
+    cerr << "removing duplicates" << endl;
+    // remove duplicates
+    sort(possible_sgRNAs.begin(), possible_sgRNAs.end(), compare_sgRNA);
+    // vector<sgRNA>::iterator unique_sgRNAs = unique(possible_sgRNAs.begin(), possible_sgRNAs.end(), equal_sgRNA_seq);
+    // possible_sgRNAs.resize(std::distance(possible_sgRNAs.begin(), unique_sgRNAs));
+
+    cerr << "# possible sgRNAs after removing duplicates = " << possible_sgRNAs.size() << endl;
+    
+    if(VERBOSE){
+      cerr << "proposed sgRNAs:" << endl;
+      for(size_t i = 0; i < possible_sgRNAs.size(); i++){
+        cerr << possible_sgRNAs[i] << endl;
+      }
+    }
     
     SeedHash seed_hash;
     build_seed_hash(false, seed_length, PAM_seq, possible_sgRNAs, seed_hash);
@@ -607,8 +703,10 @@ main(const int argc, const char **argv) {
       cerr << "seed hash table size = " << seed_hash.size() << endl;
     }
     
+    cerr << "rempving duplicates" << endl;
     // do we need to remove duplicate sgRNAs?
-    //  remove_duplicate_sgRNAs(VERBOSE, len_sgRNA, seed_length, seed_hash);
+    remove_duplicate_sgRNAs(VERBOSE, len_sgRNA, seed_length, seed_hash);
+    cerr << "new seed hash table size = " << seed_hash.size() << endl;
     
     vector<string> chroms;
     vector<string> chrom_names;
