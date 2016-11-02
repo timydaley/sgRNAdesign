@@ -9,18 +9,22 @@ install.packages("seqinr", repos = "http://cran.r-project.org")
 library(seqinr)
 hg38 = BSgenome.Hsapiens.UCSC.hg38
 seqnames(hg38)[1:25]
-hg38.chrM = DNAStringSet(hg38$chrM)
-names(hg38.chrM) = c("chrM")
-writeXStringSet(hg38.chrM, file = "hg38_chrM.fa", format = "fasta")
+hg38.chr1 = DNAStringSet(hg38$chr1)
+names(hg38.chr1) = c("chr1")
+writeXStringSet(hg38.chr1, file = "hg38_chr1.fa", format = "fasta")
 
 mart = useDataset("hsapiens_gene_ensembl", useMart("ensembl"))
 tss_map = getBM(attributes = c("hgnc_symbol", "chromosome_name", "strand", "transcript_start"), mart = mart)
-tss_map = tss_map[which(tss_map$chromosome_name == "MT"), ]
+tss_map = tss_map[which(tss_map$chromosome_name == "1"), ]
+# remove entries with no gene name
+tss_map = tss_map[which(!(tss_map$hgnc_symbol == "")), ]
+# remove duplicate TSS 
+tss_map = tss_map[match(unique(tss_map$hgnc_symbol), tss_map$hgnc_symbol), ]
 start_relative2tss = -300
 end_relative2tss = 0
 start_pos = tss_map$transcript_start + tss_map$strand*start_relative2tss + 1;
 end_pos = tss_map$transcript_start + tss_map$strand*end_relative2tss;
-chroms = rep("chrM", times = length(start_pos))
+chroms = rep("chr1", times = length(start_pos))
 wanted_ranges = GRanges(chroms, IRanges(apply(cbind(start_pos, end_pos), 1, min) , apply(cbind(start_pos, end_pos), 1, max)))
 seqs = c()
 for(i in 1:length(start_pos)){
@@ -38,6 +42,7 @@ write_seqs <- function(seqs, gene_names, tss, filename){
 	}
 }
 
-write_seqs(seqs = tss_seqs$seqs, gene_names = tss_seqs$genes, tss = tss_seqs$tss, filename = "hg38_chrM_minus300toTSS.fa")
+write_seqs(seqs = sapply(tss_seqs$seqs, toString), gene_names = tss_seqs$genes, tss = tss_seqs$tss, filename = "hg38_chr1_minus300toTSS.fa")
 
-	
+
+
