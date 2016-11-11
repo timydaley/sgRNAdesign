@@ -465,6 +465,54 @@ remove_duplicate_sgRNAs(const bool VERBOSE,
 }
 
 
+// need to remove constant tri nucleotides
+// from the sgRNAs, but not the PAM
+void
+remove_trinucleotides(const bool VERBOSE,
+                      const size_t len_sgRNA,
+                      const size_t PAM_len,
+                      vector<sgRNA> &possible_sgRNAs){
+  const string aaa = "AAA";
+  const string ccc = "CCC";
+  const string ggg = "GGG";
+  const string ttt = "TTT";
+  for(size_t i = 0; i < possible_sgRNAs.size(); i++){
+    string sgRNAseq;
+    if(possible_sgRNAs[i].rev_comp){
+      sgRNAseq = possible_sgRNAs[i].seq.substr(PAM_len, len_sgRNA);
+    }
+    else{
+      sgRNAseq = possible_sgRNAs[i].seq.substr(0, len_sgRNA);
+    }
+    // now look for trinucleotides
+    if(sgRNAseq.find(aaa) != std::string::npos){
+      possible_sgRNAs.erase(possible_sgRNAs.begin() + i);
+    }
+    else if(sgRNAseq.find(ccc) != std::string::npos){
+      possible_sgRNAs.erase(possible_sgRNAs.begin() + i);
+    }
+    else if(sgRNAseq.find(ggg) != std::string::npos){
+      possible_sgRNAs.erase(possible_sgRNAs.begin() + i);
+    }
+    else if(sgRNAseq.find(ttt) != std::string::npos){
+      possible_sgRNAs.erase(possible_sgRNAs.begin() + i);
+    }
+  }
+}
+
+void
+remove_enzyme_cut_seq(const bool VERBOSE,
+                      const size_t len_sgRNA,
+                      const size_t PAM_len,
+                      const vector<string> &enzymes,
+                      vector<sgRNA> &possible_sgRNAs){
+  // search through guides to find enzymes
+  // due to the possibility of N's, need to do inexact matching
+  
+  
+}
+
+
 // return true if we encounter a new chromosome
 // else return false
 bool
@@ -494,6 +542,8 @@ load_chrom(const bool VERBOSE,
 
 
 
+
+
 int
 main(const int argc, const char **argv) {
   
@@ -506,6 +556,8 @@ main(const int argc, const char **argv) {
     string output_file_name;
     string PAM_seq = "NGG";
     bool VERBOSE = false;
+    bool REMOVE_DUPLICATES = false;
+    bool REMOVE_TRINUCLEOTIDES = false;
     
     /********** GET COMMAND LINE ARGUMENTS  FOR C_CURVE ***********/
     OptionParser opt_parse(strip_path(argv[1]),
@@ -526,6 +578,10 @@ main(const int argc, const char **argv) {
                       true, input_file_name);
     opt_parse.add_opt("VERBOSE", 'V', "verbose mode",
                       false, VERBOSE);
+    opt_parse.add_opt("REMOVE_DUPLICATES", 'D', "remove duplicate sgRNAs",
+                      false, REMOVE_DUPLICATES);
+    opt_parse.add_opt("REMOVE_TRINUCLEOTIDES", 'T', "remove constant trinucleotides "
+                      "(aaa, ccc, ggg, ttt)", false, REMOVE_TRINUCLEOTIDES);
     
     
     vector<string> leftover_args;
@@ -577,22 +633,25 @@ main(const int argc, const char **argv) {
     }
      */
     
-    cerr << "removing duplicates" << endl;
-    remove_duplicate_sgRNAs(VERBOSE, len_sgRNA, possible_sgRNAs);
-    // remove duplicates
-    sort(possible_sgRNAs.begin(), possible_sgRNAs.end(), compare_sgRNA);
-    // vector<sgRNA>::iterator unique_sgRNAs = unique(possible_sgRNAs.begin(), possible_sgRNAs.end(), equal_sgRNA_seq);
-    // possible_sgRNAs.resize(std::distance(possible_sgRNAs.begin(), unique_sgRNAs));
+    if(REMOVE_DUPLICATES){
+      remove_duplicate_sgRNAs(VERBOSE, len_sgRNA, possible_sgRNAs);
+      if(VERBOSE)
+        cerr << "removing duplicates" << endl;
 
-    cerr << "# possible sgRNAs after removing duplicates = " << possible_sgRNAs.size() << endl;
-    
-    if(VERBOSE){
-      cerr << "proposed sgRNAs:" << endl;
-      for(size_t i = 0; i < possible_sgRNAs.size(); i++){
-        cerr << possible_sgRNAs[i] << endl;
-      }
+      if(VERBOSE)
+        cerr << "# possible sgRNAs after removing duplicates = "
+             << possible_sgRNAs.size() << endl;
     }
- 
+    if(REMOVE_TRINUCLEOTIDES){
+      if(VERBOSE)
+        cerr << "removing sgRNAs with constant trinucleotides" << endl;
+      remove_trinucleotides(VERBOSE, len_sgRNA, PAM_seq.size(), possible_sgRNAs);
+      if(VERBOSE)
+        cerr << "# possible sgRNAs after removing trinucleotides = "
+             << possible_sgRNAs.size() << endl;
+    }
+
+    
     std::ofstream of;
     if (!output_file_name.empty()) of.open(output_file_name.c_str());
     std::ostream out(output_file_name.empty() ? std::cout.rdbuf() : of.rdbuf());
