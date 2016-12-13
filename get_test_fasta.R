@@ -15,7 +15,7 @@ writeXStringSet(hg38.chr1, file = "hg38_chr1.fa", format = "fasta")
 
 mart = useDataset("hsapiens_gene_ensembl", useMart("ensembl"))
 tss_map = getBM(attributes = c("hgnc_symbol", "chromosome_name", "strand", "transcript_start"), mart = mart)
-tss_map = tss_map[which(tss_map$chromosome_name == "1"), ]
+#tss_map = tss_map[which(tss_map$chromosome_name == "1"), ]
 # remove entries with no gene name
 tss_map = tss_map[which(!(tss_map$hgnc_symbol == "")), ]
 # remove duplicate TSS 

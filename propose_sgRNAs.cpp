@@ -397,14 +397,14 @@ propose_sgRNAs(const bool VERBOSE,
     for(size_t i = len_sgRNA; i < region_seq.size() - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq == PAM){
-        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len),
+        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA),
                                         region_name, false));
       }
     }
     for(size_t i = 0; i < region_seq.size() - len_sgRNA - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq == rev_PAM){
-        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA + PAM_len),
+        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA),
                                         region_name, true));
       }
     }
@@ -424,7 +424,7 @@ propose_sgRNAs(const bool VERBOSE,
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq.find_first_of("N") == std::string::npos){
         if(wildcard_seq_match(test_seq.c_str(), PAM.c_str())){
-          possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA + PAM_len),
+          possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA),
                                           region_name, false));
           ++n_forward;
         }
@@ -434,7 +434,7 @@ propose_sgRNAs(const bool VERBOSE,
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq.find_first_of("N") == std::string::npos){
         if(wildcard_seq_match(test_seq.c_str(), rev_PAM.c_str())){
-          possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA + PAM_len),
+          possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA),
                                           region_name, true));
           ++n_rev_comp;
         }
@@ -461,15 +461,8 @@ remove_duplicate_sgRNAs(const bool VERBOSE,
   unordered_map<string, size_t> sgRNA_counts;
   for(size_t i = 0; i < possible_sgRNAs.size(); i++){
     // need to cut out PAM
-    string test_seq;
-    // reverse complement: PAM is at start
-    if(possible_sgRNAs[i].rev_comp){
-      test_seq = possible_sgRNAs[i].seq.substr(3, len_sgRNA);
-    }
-    // not reverse complement, PAM is end
-    else{
-      test_seq = possible_sgRNAs[i].seq.substr(0, len_sgRNA);
-    }
+    string test_seq = possible_sgRNAs[i].seq;
+    
     unordered_map<string, size_t>::iterator it = sgRNA_counts.find(test_seq);
     // if test_seq is not in hash table, add it
     if(it == sgRNA_counts.end()){
@@ -484,15 +477,8 @@ remove_duplicate_sgRNAs(const bool VERBOSE,
   // now we have the hash table with counts,
   // iterate through and delete the sgRNA with count > 1
   for(size_t i = 0; i < possible_sgRNAs.size(); i++){
-    string test_seq;
-    // reverse complement: PAM is at start
-    if(possible_sgRNAs[i].rev_comp){
-      test_seq = possible_sgRNAs[i].seq.substr(3, len_sgRNA);
-    }
-    // not reverse complement, PAM is end
-    else{
-      test_seq = possible_sgRNAs[i].seq.substr(0, len_sgRNA);
-    }
+    string test_seq = possible_sgRNAs[i].seq;
+    
     unordered_map<string, size_t>::iterator it = sgRNA_counts.find(test_seq);
     // if more than 1 copy, delete
     if(it->second > 1){
@@ -520,13 +506,8 @@ remove_trinucleotides(const bool VERBOSE,
   const string ttt = "TTT";
   for(vector<sgRNA>::iterator i = possible_sgRNAs.begin();
       i != possible_sgRNAs.end();){
-    string sgRNAseq;
-    if((*i).rev_comp){
-      sgRNAseq = (*i).seq.substr(PAM_len, len_sgRNA);
-    }
-    else{
-      sgRNAseq = (*i).seq.substr(0, len_sgRNA);
-    }
+    string sgRNAseq = (*i).seq;
+
     // now look for trinucleotides
     if(sgRNAseq.find(aaa) != std::string::npos){
       i = possible_sgRNAs.erase(i);
@@ -554,13 +535,8 @@ gc_correction(const bool VERBOSE,
               vector<sgRNA> & possible_sgRNAs){
   for(vector<sgRNA>::iterator i = possible_sgRNAs.begin();
       i != possible_sgRNAs.end();){
-    string sgRNAseq;
-    if((*i).rev_comp){
-      sgRNAseq = (*i).seq.substr(PAM_len, len_sgRNA);
-    }
-    else{
-      sgRNAseq = (*i).seq.substr(0, len_sgRNA);
-    }
+    string sgRNAseq = (*i).seq;
+
     double gc_count = 0;
     for(size_t j = 0; j < sgRNAseq.size(); j++){
       if(sgRNAseq[j] == 'C' || sgRNAseq[j] == 'G')
@@ -589,13 +565,8 @@ remove_enzyme_cut_seqs(const bool VERBOSE,
   // due to the possibility of N's, need to do inexact matching
   for(vector<sgRNA>::iterator i = possible_sgRNAs.begin();
       i != possible_sgRNAs.end();){
-    string sgRNAseq;
-    if((*i).rev_comp){
-      sgRNAseq = (*i).seq.substr(PAM_len, len_sgRNA);
-    }
-    else{
-      sgRNAseq = (*i).seq.substr(0, len_sgRNA);
-    }
+    string sgRNAseq = (*i).seq;
+
     bool match_found = false;
     for(size_t j = 0; j < enzymes.size(); j++){
       if(SeqMatchWithWildcard(enzymes[j], sgRNAseq)){
@@ -640,7 +611,24 @@ load_chrom(const bool VERBOSE,
 }
 
 
-
+void
+write_guides(const string output_file_name,
+             const vector<sgRNA> &possible_sgRNAs){
+  std::ofstream of;
+  if (!output_file_name.empty()) of.open(output_file_name.c_str());
+  std::ostream out(output_file_name.empty() ? std::cout.rdbuf() : of.rdbuf());
+  
+  for(size_t i = 0; i < possible_sgRNAs.size(); i++){
+    string seq;
+    if(possible_sgRNAs[i].rev_comp)
+      seq = reverse_complement(possible_sgRNAs[i].seq);
+    else
+      seq = possible_sgRNAs[i].seq;
+      
+    out << ">" << possible_sgRNAs[i].target_name << endl;
+    out << seq << endl;
+  }
+}
 
 
 int
@@ -675,9 +663,11 @@ main(const int argc, const char **argv) {
     opt_parse.add_opt("length", 'l', "length of sgRNAs (default: "
                       + toa(len_sgRNA) + ")",
                       false, len_sgRNA);
-    opt_parse.add_opt("gc_upper", 'u', "upper bound for GC content of sgRNAs",
+    opt_parse.add_opt("gc_upper", 'u', "upper bound for GC content of sgRNAs"
+                      " (default: " + toa(gc_content_upper_bound) + ")",
                       false, gc_content_upper_bound);
-    opt_parse.add_opt("gc_lower", 'u', "lower bound for GC content of sgRNAs",
+    opt_parse.add_opt("gc_lower", 'l', "lower bound for GC content of sgRNAs"
+                      " (default: " + toa(gc_content_lower_bound) + ")",
                       false, gc_content_lower_bound);
     opt_parse.add_opt("input", 'i', "input file of the DNA sequence of the "
                       "regions to search in fasta format",
@@ -787,14 +777,7 @@ main(const int argc, const char **argv) {
            << possible_sgRNAs.size() << endl;
 
     
-    std::ofstream of;
-    if (!output_file_name.empty()) of.open(output_file_name.c_str());
-    std::ostream out(output_file_name.empty() ? std::cout.rdbuf() : of.rdbuf());
-    
-    for(size_t i = 0; i < possible_sgRNAs.size(); i++){
-      out << ">" << possible_sgRNAs[i].target_name << endl;
-      out << possible_sgRNAs[i].seq << endl;
-    }
+    write_guides(output_file_name, possible_sgRNAs);
 
     
   }

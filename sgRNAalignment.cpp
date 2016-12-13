@@ -58,17 +58,21 @@ using std::strcmp;
 
 struct sgRNA {
   sgRNA () {}
-  sgRNA(const string s, const bool rc) {seq = s; rev_comp = rc;}
-  sgRNA(const string s, const string n, const bool rc) {seq = s; target_name = n; rev_comp = rc;}
-  sgRNA(const string s, const size_t k, const bool rc) {seq = s; key = k; rev_comp = rc;}
+  sgRNA(const string s, const bool rc)
+    {seq = s; rev_comp = rc; to_delete = false;}
+  sgRNA(const string s, const string n, const bool rc)
+    {seq = s; target_name = n; rev_comp = rc; to_delete = false;}
+  sgRNA(const string s, const size_t k, const bool rc)
+    {seq = s; key = k; rev_comp = rc; to_delete = false;}
   sgRNA(const string s, const string n, const size_t k, const bool rc)
-    {seq = s; target_name = n; key = k; rev_comp = rc;}
+    {seq = s; target_name = n; key = k; rev_comp = rc; to_delete = false;}
 
   
   string seq;
   string target_name;
   int key;
   bool rev_comp;
+  bool to_delete;
   vector<MappedRead> matches;
 };
 
@@ -749,9 +753,18 @@ main(const int argc, const char **argv) {
             
             std::pair<SeedHash::iterator, SeedHash::iterator>
               matches = seed_hash.equal_range(hash_val);
+            cerr << "number of matches = " << seed_hash.count(hash_val) << endl;
+            //bool need_to_delete = false;
+            size_t n_matches = 0;
             for(SeedHash::iterator it = matches.first;
-                it != matches.second; it++){
+                it != matches.second;){
+              n_matches++;
+              cerr << "match # = " << n_matches << endl;
+              cerr << "hash table size = " << seed_hash.size() << endl;
+              cerr << "load factor = " << seed_hash.load_factor() << endl;
+              cerr << "max load factor = " << seed_hash.max_load_factor() << endl;
               string test_seq = chroms[i].substr(iter - len_sgRNA + seed_length, len_sgRNA);
+              cerr << "hash val = " << it->first << endl;
               cerr << "proposed sgRNA = " << it->second.seq << endl;
               cerr << "full sequence  = " << chroms[i].substr(iter - len_sgRNA + seed_length, len_sgRNA + PAM_len) << endl;
               int d = LevenshteinWildcardMetric(test_seq,
@@ -762,8 +775,10 @@ main(const int argc, const char **argv) {
                 if(it->second.matches.size() > 1){
                   if(VERBOSE){
                     cerr << "erasing entry: " << it->second << endl;
+                    cerr << "hash table size = " << seed_hash.size() << endl;
                   }
-                  seed_hash.erase(it);
+                  // erase entry and update it
+                  it = seed_hash.erase(it);
                 }
                 else{
                   cerr << "matches before:" << endl;
@@ -778,6 +793,8 @@ main(const int argc, const char **argv) {
                     cerr << it->second.matches[i] << endl;
                   }
                   cerr << endl;
+                  // update it
+                  it++;
                 }
               }
               // if d > edit_dist, keep sgRNA
@@ -837,6 +854,8 @@ main(const int argc, const char **argv) {
           }
         }
 
+        cerr << "next base = " << chroms[i][iter + seed_length] << endl;
+        cerr << "next seq = " << chroms[i].substr(iter, seed_length);
         if(is_genomic_base(to_upper(chroms[i][iter + seed_length]))){
           // next base is A, C, G, or T
           // update hash vals for RabinKarp after checking
@@ -861,7 +880,7 @@ main(const int argc, const char **argv) {
           cerr << "new hash val = " << hash_val << endl;
         }
 
-      //  cerr << "iter = " << iter << endl;
+        cerr << "iter = " << iter << endl;
         // what to do when you reach an N?
         
       }while(iter < chroms[i].length() - len_sgRNA - PAM_len);
