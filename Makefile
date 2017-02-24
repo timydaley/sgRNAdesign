@@ -67,7 +67,7 @@ endif
 all: $(PROGS)
 
 $(PROGS): $(addprefix $(SMITHLAB_CPP)/, \
-          smithlab_os.o smithlab_utils.o GenomicRegion.o OptionParser.o RNG.o MappedRead.o)
+          smithlab_os.o smithlab_utils.o GenomicRegion.o OptionParser.o RNG.o MappedRead.o QualityScore.o)
 
 
 %.o: %.cpp %.hpp

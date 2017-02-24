@@ -43,6 +43,8 @@
 #include <RNG.hpp>
 #include <smithlab_os.hpp>
 #include <MappedRead.hpp>
+#include <QualityScore.hpp>
+
 
 
 using std::string;
@@ -116,6 +118,13 @@ to_upper(char n){
 }
 
 string
+to_upper(string s){
+  for(size_t i = 0; i < s.size(); i++)
+    s[i] = to_upper(s[i]);
+  return s;
+}
+
+string
 reverse_complement(const string seq){
   string rev_comp;
   rev_comp.resize(seq.size());
@@ -127,8 +136,8 @@ reverse_complement(const string seq){
 
 struct sgRNA {
   sgRNA () {}
-  sgRNA(const string s, const string g)
-  {seq = s; rev_comp = reverse_complement(s); target_name = g; count = 0;}
+  sgRNA(const string s, const string g, const size_t i)
+  {seq = s; rev_comp = reverse_complement(s); target_name = g; index = i; count = 0;}
   
   string seq;
   string rev_comp;
@@ -236,20 +245,22 @@ read_guides_from_text(const string &input_file_name,
   string seq;
   string gene;
   while(getline(in, buffer)){
-    ++line_count;
     std::istringstream is(buffer);
     if(!(is >> gene >> seq))
       throw SMITHLABException("bad line at " + toa(line_count) +
                               " " + buffer);
-    sgRNA guide = sgRNA(seq, gene);
+    seq = to_upper(seq);
+    sgRNA guide = sgRNA(seq, gene, line_count);
     guides.push_back(guide);
+    ++line_count;
   }
   return line_count;
 }
 
 
 void
-match_guide(vector<sgRNA> &guides,
+match_guide(const bool VERBOSE,
+            vector<sgRNA> &guides,
             const string &input_string,
             const size_t guide_length,
             const size_t max_dist,
@@ -259,62 +270,118 @@ match_guide(vector<sgRNA> &guides,
             SeedHash &revcomp_2nd_hash){
   vector<size_t> distances;
   vector<size_t> indexes;
+  if(VERBOSE)
+    cerr << "testing string " << input_string << endl;
+  
   for(size_t i = 0; i < input_string.size() - guide_length; i++){
     // test for match in hash tables, if so then do full distance
     // 1st hash table
     string test_string = input_string.substr(i, guide_length/2);
+    if(VERBOSE)
+      cerr << test_string << endl;
+    if(VERBOSE)
+      cerr << "forward 1st half hash" << endl;
     std::pair<SeedHash::iterator, SeedHash::iterator>
       matches = forward_1st_hash.equal_range(test_string);
-    for(SeedHash::iterator it = matches.first;
-        it != matches.second;){
+    if(matches.first != matches.second){
+      if(VERBOSE)
+        cerr << "match found" << endl;
+      for(SeedHash::iterator it = matches.first;
+          it != matches.second;){
       // do full distance
-      string test_guide = it->second.seq;
-      size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
-      if(dist <= max_dist){
-        distances.push_back(dist);
-        indexes.push_back(it->second.index);
+        string test_guide = it->second.seq;
+        if(VERBOSE)
+          cerr << "guide: " << it->second.seq << '\t'
+               << it->second.target_name << '\t'
+               << it->second.index << endl;
+        size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
+        
+        if(dist <= max_dist){
+          distances.push_back(dist);
+          indexes.push_back(it->second.index);
+        }
+        it++;
       }
     }
     
     // 2nd hash table
     test_string = input_string.substr(guide_length/2, guide_length/2);
+    if(VERBOSE)
+      cerr << test_string << endl;
+    if(VERBOSE)
+      cerr << "forward 2nd half hash" << endl;
     matches = forward_2nd_hash.equal_range(test_string);
-    for(SeedHash::iterator it = matches.first;
-        it != matches.second;){
+    if(matches.first != matches.second){
+      if(VERBOSE)
+        cerr << "match found" << endl;
+      for(SeedHash::iterator it = matches.first;
+          it != matches.second;){
       // do full distance
-      string test_guide = it->second.seq;
-      size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
-      if(dist <= max_dist){
-        distances.push_back(dist);
-        indexes.push_back(it->second.index);
+        string test_guide = it->second.seq;
+        if(VERBOSE)
+          cerr << "guide: " << it->second.seq << '\t'
+          << it->second.target_name << '\t'
+          << it->second.index << endl;
+        size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
+        if(dist <= max_dist){
+          distances.push_back(dist);
+          indexes.push_back(it->second.index);
+        }
+        it++;
       }
     }
     
     // 3rd hash table, reverse complement now
     test_string = reverse_complement(input_string.substr(0, guide_length/2));
+    if(VERBOSE)
+      cerr << test_string << endl;
+    if(VERBOSE)
+      cerr << "reverse complement 1st half hash" << endl;
     matches = revcomp_1st_hash.equal_range(test_string);
-    for(SeedHash::iterator it = matches.first;
-        it != matches.second;){
+    if(matches.first != matches.second){
+      if(VERBOSE)
+        cerr << "match found" << endl;
+      for(SeedHash::iterator it = matches.first;
+          it != matches.second;){
       // do full distance
-      string test_guide = it->second.seq;
-      size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
-      if(dist <= max_dist){
-        distances.push_back(dist);
-        indexes.push_back(it->second.index);
+        string test_guide = it->second.seq;
+        if(VERBOSE)
+          cerr << "guide: " << it->second.seq << '\t'
+          << it->second.target_name << '\t'
+          << it->second.index << endl;
+        size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
+        if(dist <= max_dist){
+          distances.push_back(dist);
+          indexes.push_back(it->second.index);
+        }
+        it++;
       }
     }
     
     // 4th hash table
     test_string = reverse_complement(input_string.substr(guide_length/2, guide_length/2));
+    if(VERBOSE)
+      cerr << test_string << endl;
+    if(VERBOSE)
+      cerr << "reverse complement 2nd half hash" << endl;
     matches = revcomp_1st_hash.equal_range(test_string);
-    for(SeedHash::iterator it = matches.first;
-        it != matches.second;){
+    if(matches.first != matches.second){
+      if(VERBOSE)
+        cerr << "match found" << endl;
+      for(SeedHash::iterator it = matches.first;
+          it != matches.second;){
         // do full distance
-      string test_guide = it->second.seq;
-      size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
-      if(dist <= max_dist){
-        distances.push_back(dist);
-        indexes.push_back(it->second.index);
+        if(VERBOSE)
+          cerr << "guide: " << it->second.seq << '\t'
+          << it->second.target_name << '\t'
+          << it->second.index << endl;
+        string test_guide = it->second.seq;
+        size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
+        if(dist <= max_dist){
+          distances.push_back(dist);
+          indexes.push_back(it->second.index);
+        }
+        it++;
       }
     }
     // one match, update counts
@@ -339,7 +406,105 @@ match_guide(vector<sgRNA> &guides,
   }
 }
 
+// from smithlab_os
+\
 
+inline bool is_fastq_name_line(size_t line_count) {
+  return ((line_count & 3ul) == 0ul);
+}
+
+inline bool is_fastq_sequence_line(size_t line_count) {
+  return ((line_count & 3ul) == 1ul);
+}
+
+inline bool is_fastq_score_name_line(size_t line_count) {
+  return ((line_count & 3ul) == 2ul);
+}
+
+inline bool is_fastq_score_line(size_t line_count) {
+  return ((line_count & 3ul) == 3ul);
+}
+
+void
+read_fastq_file(const string &input_file_name,
+                vector<string> &names,
+                vector<string> &sequences,
+                vector<string> &scores) {
+  
+  static const size_t INPUT_BUFFER_SIZE = 1000000;
+  
+  std::ifstream in(input_file_name.c_str());
+  if (!in) //if file doesn't open
+    throw SMITHLABException("could not open input file: " + input_file_name);
+  
+  string s, name, scr;
+  bool first_line = true;
+  bool is_sequence_line = false, is_score_line = false;
+  size_t line_count = 0;
+  while (!in.eof()) {
+    char buffer[INPUT_BUFFER_SIZE + 1];
+    in.getline(buffer, INPUT_BUFFER_SIZE);
+    if (in.gcount() == static_cast<int>(INPUT_BUFFER_SIZE))
+      throw SMITHLABException(
+                              "Line in " + name + "\nexceeds max length: "
+                              + toa(INPUT_BUFFER_SIZE));
+    if (in.gcount() == 0)
+      break;
+    
+    // correct for dos carriage returns before newlines
+    if (buffer[strlen(buffer) - 1] == '\r')
+      buffer[strlen(buffer) - 1] = '\0';
+    
+    if (is_fastq_name_line(line_count)) {
+      if (buffer[0] != '@')
+        throw SMITHLABException("invalid FASTQ name line: " + string(buffer));
+      if (first_line == false && s.length() > 0) {
+        names.push_back(name);
+        sequences.push_back(s);
+        scores.push_back(scr);
+      } else
+        first_line = false;
+      name = buffer;
+      name = name.substr(name.find_first_not_of("@ "));
+      is_sequence_line = true;
+    }
+    if (is_fastq_sequence_line(line_count)) {
+      assert(is_sequence_line);
+      s = buffer;
+      is_sequence_line = false;
+    }
+    if (is_fastq_score_name_line(line_count)) {
+      if (buffer[0] != '+')
+        throw SMITHLABException("invalid FASTQ score name line: " +
+                                string(buffer));
+      is_score_line = true;
+    }
+    if (is_fastq_score_line(line_count)) {
+      assert(is_score_line);
+      scr = buffer;
+      is_score_line = false;
+    }
+    ++line_count;
+  }
+  if (!first_line && s.length() > 0) {
+    names.push_back(name);
+    sequences.push_back(s);
+    scores.push_back(scr);
+  }
+}
+
+void
+write_guides(const string &counts_file_name,
+             const vector<sgRNA> &guides){
+  std::ofstream of;
+  if (!counts_file_name.empty()) of.open(counts_file_name.c_str());
+  std::ostream out(counts_file_name.empty() ? std::cout.rdbuf() : of.rdbuf());
+  
+  for(size_t i = 0; i < guides.size(); i++){
+    out << guides[i].target_name << '\t'
+        << guides[i].seq << '\t' << guides[i].count << endl;
+  }
+}
 
 int
 main(const int argc, const char **argv) {
@@ -386,7 +551,44 @@ main(const int argc, const char **argv) {
     }
     /**********************************************************************/
     
-
+    vector<string> names;
+    vector<string> sequences;
+    vector<string> scores;
+    if(VERBOSE)
+      cerr << "reading in reads" << endl;
+    read_fastq_file(fastq_file_name, names, sequences, scores);
+    if(VERBOSE)
+      cerr << "read in " << sequences.size() << " reads" << endl;
+    if(VERBOSE)
+      cerr << "reading in guides" << endl;
+    vector<sgRNA> guides;
+    read_guides_from_text(guide_file_name, guides);
+    if(VERBOSE){
+      cerr << "read in " << guides.size() << " guides" << endl;
+      //for(size_t i = 0; i < guides.size(); i++){
+      //  cerr << guides[i].target_name << '\t'
+      //       << guides[i].seq << '\t' << guides[i].count << endl;
+      //}
+    }
+    
+    size_t guide_length = guides[0].seq.size();
+    SeedHash forward_1st_hash, forward_2nd_hash, revcomp_1st_hash, revcomp_2nd_hash;
+    if(VERBOSE)
+      cerr << "building hash tables" << endl;
+    build_hashes(guide_length, guides, forward_1st_hash, forward_2nd_hash,
+                 revcomp_1st_hash, revcomp_2nd_hash);
+    
+    if(VERBOSE)
+      cerr << "matching reads to guides" << endl;
+    for(size_t i = 0; i < sequences.size(); i++){
+      match_guide(false, guides, sequences[i], guide_length,  max_dist,
+                  forward_1st_hash, forward_2nd_hash,
+                  revcomp_1st_hash, revcomp_2nd_hash);
+      if(VERBOSE && (i % 100000 == 0))
+        cerr << "processed " << i << " reads" << endl;
+    }
+    
+    write_guides(counts_file_name, guides);
     
   }
   catch (SMITHLABException &e) {
