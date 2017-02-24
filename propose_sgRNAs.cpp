@@ -177,42 +177,6 @@ base2int(char c) {
 }
  */
 
-// convert whole string to integer value for Rabin-Karp
-inline size_t
-string2int(const string seq){
-  // sum_{i = 0}^{|seq| - 1} seq[i]*4^i
-  size_t x = 0;
-  for(size_t i = 0; i < seq.size(); i++)
-    x += base2int(seq[i])*(1 << 2*i);
-  return x;
-}
-
-inline char
-int2base(const int i){
-  switch(i) {
-    case 0  : return 'A';
-    case 1  : return 'C';
-    case 2  : return 'G';
-    case 3  : return 'T';
-    default : return 'N';
-  }
-}
-
-inline string
-int2string(const int input_int,
-           const size_t string_length){
-  int remainder = input_int;
-  string i2s;
-  i2s.resize(string_length, 'A');
-  for(size_t i = string_length; i > 0; i--){
-    int divisor = 1 << 2*(i - 1);
-    i2s[i - 1] = int2base(remainder/divisor);
-    remainder = remainder % divisor;
-  }
-  return i2s;
-}
-
-
 
 
 string

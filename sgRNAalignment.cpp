@@ -1,4 +1,4 @@
-/*
+/*
  *    sgRNAalignment: aligment-based search for sgRNAs
  *
  *    Copyright (C) 2016 Stanford University
