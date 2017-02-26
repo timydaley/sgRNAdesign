@@ -276,6 +276,8 @@ match_guide(const bool VERBOSE,
   for(size_t i = 0; i < input_string.size() - guide_length; i++){
     // test for match in hash tables, if so then do full distance
     // 1st hash table
+    
+    bool EXACT_MATCH = false;
     string test_string = input_string.substr(i, guide_length/2);
     if(VERBOSE)
       cerr << test_string << endl;
@@ -300,9 +302,15 @@ match_guide(const bool VERBOSE,
           distances.push_back(dist);
           indexes.push_back(it->second.index);
         }
+        if(dist == 0){
+          EXACT_MATCH = true;
+          break;
+        }
         it++;
       }
     }
+    if(EXACT_MATCH)
+      break;
     
     // 2nd hash table
     test_string = input_string.substr(guide_length/2, guide_length/2);
@@ -327,9 +335,16 @@ match_guide(const bool VERBOSE,
           distances.push_back(dist);
           indexes.push_back(it->second.index);
         }
+        if(dist == 0){
+          EXACT_MATCH = true;
+          break;
+        }
         it++;
       }
     }
+    if(EXACT_MATCH)
+      break;
+
     
     // 3rd hash table, reverse complement now
     test_string = reverse_complement(input_string.substr(0, guide_length/2));
@@ -354,9 +369,15 @@ match_guide(const bool VERBOSE,
           distances.push_back(dist);
           indexes.push_back(it->second.index);
         }
+        if(dist == 0){
+          EXACT_MATCH = true;
+          break;
+        }
         it++;
       }
     }
+    if(EXACT_MATCH)
+      break;
     
     // 4th hash table
     test_string = reverse_complement(input_string.substr(guide_length/2, guide_length/2));
@@ -381,28 +402,35 @@ match_guide(const bool VERBOSE,
           distances.push_back(dist);
           indexes.push_back(it->second.index);
         }
+        if(dist == 0){
+          EXACT_MATCH = true;
+          break;
+        }
         it++;
       }
     }
-    // one match, update counts
-    if(distances.size() == 1){
-      guides[indexes[0]].count++;
-    }
-    else if(distances.size() > 1){
-      size_t which_min = 0;
-      bool IS_UNIQUE = true;
-      for(size_t j = 1; j < distances.size(); j++){
-        if(distances[j] < distances[which_min]){
-          which_min = j;
-          IS_UNIQUE = true;
-        }
-        else if(distances[j] == distances[which_min]){
-          IS_UNIQUE = false;
-        }
+    if(EXACT_MATCH)
+      break;
+  }
+  
+  // one match, update counts
+  if(distances.size() == 1){
+    guides[indexes[0]].count++;
+  }
+  else if(distances.size() > 1){
+    size_t which_min = 0;
+    bool IS_UNIQUE = true;
+    for(size_t j = 1; j < distances.size(); j++){
+      if(distances[j] < distances[which_min]){
+        which_min = j;
+        IS_UNIQUE = true;
       }
-      if(IS_UNIQUE)
-        guides[indexes[which_min]].count++;
+      else if(distances[j] == distances[which_min]){
+        IS_UNIQUE = false;
+      }
     }
+    if(IS_UNIQUE)
+      guides[indexes[which_min]].count++;
   }
 }
 
@@ -584,7 +612,7 @@ main(const int argc, const char **argv) {
       match_guide(false, guides, sequences[i], guide_length,  max_dist,
                   forward_1st_hash, forward_2nd_hash,
                   revcomp_1st_hash, revcomp_2nd_hash);
-      if(VERBOSE && (i % 100000 == 0))
+      if(VERBOSE && (i % 1000000 == 0))
         cerr << "processed " << i << " reads" << endl;
     }
     
