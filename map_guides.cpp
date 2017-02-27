@@ -626,7 +626,8 @@ main(const int argc, const char **argv) {
     
     if(VERBOSE){
       cerr << "# matches found = " << n_matches << endl;
-      cerr << "percent mapped = " << static_cast<double>(n_matches)/sequences.size() << endl;
+      double p_mapped = static_cast<double>(n_matches)/static_cast<double>(sequences.size());
+      cerr << "percent mapped = " << p_mapped << endl;
     }
     write_guides(counts_file_name, guides);
     
