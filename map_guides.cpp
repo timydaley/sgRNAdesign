@@ -624,8 +624,10 @@ main(const int argc, const char **argv) {
         cerr << "processed " << i << " reads" << endl;
     }
     
-    if(VERBOSE)
+    if(VERBOSE){
       cerr << "# matches found = " << n_matches << endl;
+      cerr << "percent mapped = " << n_matches/sequences.size() << endl;
+    }
     write_guides(counts_file_name, guides);
     
   }
