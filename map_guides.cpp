@@ -258,7 +258,7 @@ read_guides_from_text(const string &input_file_name,
 }
 
 
-void
+bool
 match_guide(const bool VERBOSE,
             vector<sgRNA> &guides,
             const string &input_string,
@@ -416,6 +416,7 @@ match_guide(const bool VERBOSE,
   // one match, update counts
   if(distances.size() == 1){
     guides[indexes[0]].count++;
+    return true;
   }
   else if(distances.size() > 1){
     size_t which_min = 0;
@@ -429,9 +430,12 @@ match_guide(const bool VERBOSE,
         IS_UNIQUE = false;
       }
     }
-    if(IS_UNIQUE)
+    if(IS_UNIQUE){
       guides[indexes[which_min]].count++;
+      return true;
+    }
   }
+  return false;
 }
 
 // from smithlab_os
@@ -608,14 +612,20 @@ main(const int argc, const char **argv) {
     
     if(VERBOSE)
       cerr << "matching reads to guides" << endl;
+    size_t n_matches = 0;
     for(size_t i = 0; i < sequences.size(); i++){
-      match_guide(false, guides, sequences[i], guide_length,  max_dist,
+      bool MATCH_FOUND =
+        match_guide(false, guides, sequences[i], guide_length,  max_dist,
                   forward_1st_hash, forward_2nd_hash,
                   revcomp_1st_hash, revcomp_2nd_hash);
+      if(MATCH_FOUND)
+        n_matches++;
       if(VERBOSE && (i % 1000000 == 0))
         cerr << "processed " << i << " reads" << endl;
     }
     
+    if(VERBOSE)
+      cerr << "# matches found = " << n_matches << endl;
     write_guides(counts_file_name, guides);
     
   }
