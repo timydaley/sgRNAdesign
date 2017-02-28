@@ -156,17 +156,17 @@ build_hashes(const size_t guide_length,
              SeedHash &forward_2nd_hash,
              SeedHash &revcomp_1st_hash,
              SeedHash &revcomp_2nd_hash){
+
   for(size_t i = 0; i < guides.size(); i++){
     string first_half = guides[i].seq.substr(0, guide_length/2);
     forward_1st_hash.insert(make_pair<string, sgRNA>(first_half, guides[i]));
-    string first_half_rev_comp = reverse_complement(first_half);
+    string first_half_rev_comp = guides[i].rev_comp.substr(0, guide_length/2);
     revcomp_1st_hash.insert(make_pair<string, sgRNA>(first_half_rev_comp, guides[i]));
   }
   for(size_t i = 0; i < guides.size(); i++){
     string second_half = guides[i].seq.substr(guide_length/2, guide_length/2);
     forward_2nd_hash.insert(make_pair<string, sgRNA>(second_half, guides[i]));
-    string second_half_rev_comp =
-      reverse_complement(second_half);
+    string second_half_rev_comp = guides[i].rev_comp.substr(guide_length/2, guide_length/2);
     revcomp_2nd_hash.insert(make_pair<string, sgRNA>(second_half_rev_comp, guides[i]));
   }
 }
@@ -347,7 +347,7 @@ match_guide(const bool VERBOSE,
 
     
     // 3rd hash table, reverse complement now
-    test_string = reverse_complement(input_string.substr(0, guide_length/2));
+    test_string = input_string.substr(0, guide_length/2);
     if(VERBOSE)
       cerr << test_string << endl;
     if(VERBOSE)
@@ -380,7 +380,7 @@ match_guide(const bool VERBOSE,
       break;
     
     // 4th hash table
-    test_string = reverse_complement(input_string.substr(guide_length/2, guide_length/2));
+    test_string = input_string.substr(guide_length/2, guide_length/2);
     if(VERBOSE)
       cerr << test_string << endl;
     if(VERBOSE)
