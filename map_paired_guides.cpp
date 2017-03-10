@@ -137,11 +137,10 @@ reverse_complement(const string seq){
 struct sgRNA {
   sgRNA () {}
   sgRNA(const string s, const string g, const size_t i)
-  {seq = s; target_name = g; index = i; count = 0;}
+  {seq = s; target_name = g; index = i;}
   
   string seq;
   string target_name;
-  size_t count;
   size_t index;
 };
 
@@ -245,232 +244,53 @@ read_guides_from_text(const string &input_file_name,
   return line_count;
 }
 
-bool
-exact_match(const bool VERBOSE,
-            vector<sgRNA> &guides,
-            const string &input_string,
-            const size_t guide_length,
-            SeedHash &forward_hash){
-  if(VERBOSE)
-    cerr << "testing string " << input_string << endl;
-  
-  // we want to exit upon finding an exact match
+size_t
+get_match_index(SeedHash &guide_hash,
+                const string &input_string,
+                const size_t guide_length){
   for(size_t i = 0; i < input_string.size() - guide_length; i++){
     string hash_string = input_string.substr(i, guide_length);
-    SeedHash::iterator find_string = forward_hash.find(hash_string);
+    SeedHash::iterator find_string = guide_hash.find(hash_string);
     if(!(find_string == forward_hash.end())){
-      if(VERBOSE){
-        cerr << "match for " << hash_string << " found at "
-             << find_string->second.index << endl;
-        cerr << "matching string = " << guides[find_string->second.index].seq << endl;
-      }
-      guides[find_string->second.index].count++;
       // match found, exit
-      return true;
+      return find_string->second.index
     }
     
     // reverse complement
     hash_string = reverse_complement(input_string.substr(i, guide_length));
     find_string = forward_hash.find(hash_string);
     if(!(find_string == forward_hash.end())){
-      if(VERBOSE){
-        cerr << "match for " << hash_string << " found at "
-        << find_string->second.index << endl;
-        cerr << "matching string = " << guides[find_string->second.index].seq << endl;
-      }
-      guides[find_string->second.index].count++;
       // match found, exit
-      return true;
+      return find_string->second.index
     }
   }
-  
-  return false;
+  // no match found, return size_t max
+  return std::numeric_limits<size_t>::max();
 }
 
-/*
 bool
-match_guide(const bool VERBOSE,
-            vector<sgRNA> &guides,
-            const string &input_string,
-            const size_t guide_length,
-            const size_t max_dist,
-            SeedHash &forward_1st_hash,
-            SeedHash &forward_2nd_hash,
-            SeedHash &revcomp_1st_hash,
-            SeedHash &revcomp_2nd_hash){
-  vector<size_t> distances;
-  vector<size_t> indexes;
-  if(VERBOSE)
-    cerr << "testing string " << input_string << endl;
+exact_double_match(const bool VERBOSE,
+                   const string &input_string_end1,
+                   const string &input_string_end2,
+                   const size_t guide_length,
+                   vector< vector<size_t> > &count_matrix,
+                   SeedHash &guide_hash){
   
-  bool EXACT_MATCH = false;
-  for(size_t i = 0; i < input_string.size() - guide_length; i++){
-    // test for match in hash tables, if so then do full distance
-    // 1st hash table
-    
-    string test_string = input_string.substr(i, guide_length/2);
-    if(VERBOSE)
-      cerr << test_string << endl;
-    if(VERBOSE)
-      cerr << "forward 1st half hash" << endl;
-    std::pair<SeedHash::iterator, SeedHash::iterator>
-      matches = forward_1st_hash.equal_range(test_string);
-    if(matches.first != matches.second){
-      if(VERBOSE)
-        cerr << "match found" << endl;
-      for(SeedHash::iterator it = matches.first;
-          it != matches.second;){
-      // do full distance
-        string test_guide = it->second.seq;
-        if(VERBOSE)
-          cerr << "guide: " << it->second.seq << '\t'
-               << it->second.target_name << '\t'
-               << it->second.index << endl;
-        size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
-        
-        if(dist <= max_dist){
-          distances.push_back(dist);
-          indexes.push_back(it->second.index);
-        }
-        if(dist == 0){
-          EXACT_MATCH = true;
-          break;
-        }
-        it++;
-      }
-    }
-    if(EXACT_MATCH)
-      break;
-    
-    // 2nd hash table
-    test_string = input_string.substr(i + guide_length/2, guide_length/2);
-    if(VERBOSE)
-      cerr << test_string << endl;
-    if(VERBOSE)
-      cerr << "forward 2nd half hash" << endl;
-    matches = forward_2nd_hash.equal_range(test_string);
-    if(matches.first != matches.second){
-      if(VERBOSE)
-        cerr << "match found" << endl;
-      for(SeedHash::iterator it = matches.first;
-          it != matches.second;){
-      // do full distance
-        string test_guide = it->second.seq;
-        if(VERBOSE)
-          cerr << "guide: " << it->second.seq << '\t'
-          << it->second.target_name << '\t'
-          << it->second.index << endl;
-        size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
-        if(dist <= max_dist){
-          distances.push_back(dist);
-          indexes.push_back(it->second.index);
-        }
-        if(dist == 0){
-          EXACT_MATCH = true;
-          break;
-        }
-        it++;
-      }
-    }
-    if(EXACT_MATCH)
-      break;
-
-    
-    // 3rd hash table, reverse complement now
-    test_string = input_string.substr(i, guide_length/2);
-    if(VERBOSE)
-      cerr << test_string << endl;
-    if(VERBOSE)
-      cerr << "reverse complement 1st half hash" << endl;
-    matches = revcomp_1st_hash.equal_range(test_string);
-    if(matches.first != matches.second){
-      if(VERBOSE)
-        cerr << "match found" << endl;
-      for(SeedHash::iterator it = matches.first;
-          it != matches.second;){
-      // do full distance
-        string test_guide = it->second.seq;
-        if(VERBOSE)
-          cerr << "guide: " << it->second.seq << '\t'
-          << it->second.target_name << '\t'
-          << it->second.index << endl;
-        size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
-        if(dist <= max_dist){
-          distances.push_back(dist);
-          indexes.push_back(it->second.index);
-        }
-        if(dist == 0){
-          EXACT_MATCH = true;
-          break;
-        }
-        it++;
-      }
-    }
-    if(EXACT_MATCH)
-      break;
-    
-    // 4th hash table
-    test_string = input_string.substr(i + guide_length/2, guide_length/2);
-    if(VERBOSE)
-      cerr << test_string << endl;
-    if(VERBOSE)
-      cerr << "reverse complement 2nd half hash" << endl;
-    matches = revcomp_1st_hash.equal_range(test_string);
-    if(matches.first != matches.second){
-      if(VERBOSE)
-        cerr << "match found" << endl;
-      for(SeedHash::iterator it = matches.first;
-          it != matches.second;){
-        // do full distance
-        if(VERBOSE)
-          cerr << "guide: " << it->second.seq << '\t'
-          << it->second.target_name << '\t'
-          << it->second.index << endl;
-        string test_guide = it->second.seq;
-        size_t dist = LevenshteinMetric(input_string.substr(i, guide_length), test_guide);
-        if(dist <= max_dist){
-          distances.push_back(dist);
-          indexes.push_back(it->second.index);
-        }
-        if(dist == 0){
-          EXACT_MATCH = true;
-          break;
-        }
-        it++;
-      }
-    }
-    if(EXACT_MATCH)
-      break;
-  }
+  // we want to exit upon finding an exact match
+  size_t first_index = get_match_index(guide_hash, input_string_end1, guide_length);
+  size_t second_index = get_match_index(guide_hash, input_string_end2, guide_length);
   
-  // one match, update counts
-  if(distances.size() == 1){
-    guides[indexes[0]].count++;
+  if((first_index <  count_matrix.size()) &&
+     (second_index < count_matrix[0].size())){
+    count_matrix[first_index][second_index]++;
     return true;
   }
-  else if(distances.size() > 1){
-    size_t which_min = 0;
-    bool IS_UNIQUE = true;
-    for(size_t j = 1; j < distances.size(); j++){
-      if(distances[j] < distances[which_min]){
-        which_min = j;
-        IS_UNIQUE = true;
-      }
-      else if(distances[j] == distances[which_min]){
-        IS_UNIQUE = false;
-      }
-    }
-    if(IS_UNIQUE){
-      guides[indexes[which_min]].count++;
-      return true;
-    }
-  }
+  
   return false;
 }
- */
+
 
 // from smithlab_os
-\
 
 inline bool is_fastq_name_line(size_t line_count) {
   return ((line_count & 3ul) == 0ul);
@@ -576,7 +396,8 @@ main(const int argc, const char **argv) {
     // option variables
     size_t max_dist = 1;
     string guide_file_name;
-    string fastq_file_name;
+    string fastq1_file_name;
+    string fastq2_file_name;
     string counts_file_name;
     bool VERBOSE = false;
     
@@ -587,11 +408,13 @@ main(const int argc, const char **argv) {
     opt_parse.add_opt("max_dist", 'd', "maximum edit distance for matches"
                       " (default: " + toa(max_dist) + ")",
                       false, max_dist);
-    opt_parse.add_opt("guides", 'g', "file name of the guides and associated genes, "
-                      "tab-separated with gene first",
+    opt_parse.add_opt("guides", 'g', "file name of the guides and associated "
+                      "genes, tab-separated with gene first",
                       true, guide_file_name);
-    opt_parse.add_opt("fastq", 'f', "sequenced fastq file name",
-                      true, fastq_file_name);
+    opt_parse.add_opt("fastq1", '1', "first end of the sequenced fastq file",
+                      true, fastq1_file_name);
+    opt_parse.add_opt("fastq2", '2', "second end of the sequenced fastq file",
+                      true, fastq2_file_name);
     opt_parse.add_opt("output", 'o', "output file name",
                       false, counts_file_name);
     opt_parse.add_opt("VERBOSE", 'V', "verbose mode",
@@ -615,13 +438,22 @@ main(const int argc, const char **argv) {
     /**********************************************************************/
     
     vector<string> names;
-    vector<string> sequences;
+    vector<string> seqs_1, seqs_2;
     vector<string> scores;
     if(VERBOSE)
       cerr << "reading in reads" << endl;
-    read_fastq_file(fastq_file_name, names, sequences, scores);
+    read_fastq_file(fastq1_file_name, names, seqs_1, scores);
+    names.clear();
+    scores.clear();
+    read_fastq_file(fastq2_file_name, names, seqs_2, scores);
+    names.clear();
+    scores.clear();
+    if(seqs_1.size() != seqs_2.size())
+      cerr << "number of reads in the two ends are not equal" << endl;
+    assert(seqs_1.size() == seqs_2.size());
+    
     if(VERBOSE)
-      cerr << "read in " << sequences.size() << " reads" << endl;
+      cerr << "read in " << seqs_1.size() << " reads" << endl;
     if(VERBOSE)
       cerr << "reading in guides" << endl;
     vector<sgRNA> guides;
@@ -643,9 +475,13 @@ main(const int argc, const char **argv) {
     if(VERBOSE)
       cerr << "matching reads to guides" << endl;
     size_t n_matches = 0;
-    for(size_t i = 0; i < sequences.size(); i++){
-      bool MATCH_FOUND = exact_match(false, guides, sequences[i],
-                                     guide_length, forward_hash);
+    // initialize count matrix
+    vector< vector<size_t> > count_matrix(guides.size(),
+                                          vector<size_t>(guides.size()));
+    for(size_t i = 0; i < seqs_1.size(); i++){
+      bool MATCH_FOUND = exact_double_match(VERBOSE, seqs_1[i], seqs_2[i],
+                                            guide_length, count_matrix,
+                                            guide_hash);
       if(MATCH_FOUND)
         n_matches++;
       if(VERBOSE && (i % 1000000 == 0))
