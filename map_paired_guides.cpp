@@ -251,17 +251,17 @@ get_match_index(SeedHash &guide_hash,
   for(size_t i = 0; i < input_string.size() - guide_length; i++){
     string hash_string = input_string.substr(i, guide_length);
     SeedHash::iterator find_string = guide_hash.find(hash_string);
-    if(!(find_string == forward_hash.end())){
+    if(!(find_string == guide_hash.end())){
       // match found, exit
-      return find_string->second.index
+      return find_string->second.index;
     }
     
     // reverse complement
     hash_string = reverse_complement(input_string.substr(i, guide_length));
-    find_string = forward_hash.find(hash_string);
-    if(!(find_string == forward_hash.end())){
+    find_string = guide_hash.find(hash_string);
+    if(!(find_string == guide_hash.end())){
       // match found, exit
-      return find_string->second.index
+      return find_string->second.index;
     }
   }
   // no match found, return size_t max
@@ -377,17 +377,26 @@ read_fastq_file(const string &input_file_name,
 }
 
 void
-write_guides(const string &counts_file_name,
-             const vector<sgRNA> &guides){
+write_count_matrix(const string &counts_file_name,
+                   vector< vector<size_t> > &count_matrix,
+                   vector<sgRNA> &guides){
   std::ofstream of;
   if (!counts_file_name.empty()) of.open(counts_file_name.c_str());
   std::ostream out(counts_file_name.empty() ? std::cout.rdbuf() : of.rdbuf());
-  
+  out << "guide" << '\t' << "gene" << '\t';
   for(size_t i = 0; i < guides.size(); i++){
-    out << guides[i].target_name << '\t'
-        << guides[i].seq << '\t' << guides[i].count << endl;
+    out << guides[i].seq << '\t';
+  }
+  out << endl;
+  for(size_t i = 0; i < count_matrix.size(); i++){
+    out << guides[i].seq << '\t' << guides[i].target_name << '\t';
+    for(size_t j = 0; j < count_matrix[i].size(); j++){
+      out << count_matrix[i][j] << '\t';
+    }
+    out << endl;
   }
 }
+
 
 int
 main(const int argc, const char **argv) {
@@ -467,10 +476,10 @@ main(const int argc, const char **argv) {
     }
     
     const size_t guide_length = guides[0].seq.size();
-    SeedHash forward_hash;
+    SeedHash guide_hash;
     if(VERBOSE)
       cerr << "building hash tables" << endl;
-    build_hash(guide_length, guides, forward_hash);
+    build_hash(guide_length, guides, guide_hash);
     
     if(VERBOSE)
       cerr << "matching reads to guides" << endl;
@@ -490,10 +499,10 @@ main(const int argc, const char **argv) {
     
     if(VERBOSE){
       cerr << "# matches found = " << n_matches << endl;
-      double p_mapped = static_cast<double>(n_matches)/static_cast<double>(sequences.size());
+      double p_mapped = static_cast<double>(n_matches)/static_cast<double>(seqs_1.size());
       cerr << "percent mapped = " << p_mapped << endl;
     }
-    write_guides(counts_file_name, guides);
+    write_count_matrix(counts_file_name, count_matrix, guides);
     
   }
   catch (SMITHLABException &e) {

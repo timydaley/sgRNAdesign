@@ -34,7 +34,7 @@ endif
 
 SOURCES = $(wildcard *.cpp)
 OBJECTS = $(patsubst %.cpp,%.o,$(SOURCES))
-PROGS = sgRNAalignment propose_sgRNAs map_guides
+PROGS = sgRNAalignment propose_sgRNAs map_guides map_paired_guides
 INCLUDEDIRS = $(SMITHLAB_CPP)
 INCLUDEARGS = $(addprefix -I,$(INCLUDEDIRS))
 
