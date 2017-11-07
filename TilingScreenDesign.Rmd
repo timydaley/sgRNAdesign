@@ -1,0 +1,251 @@
+---
+title: "Guide design for a tiling screen"
+author: "Timothy Daley"
+date: "10/30/2017"
+output: html_document
+---
+
+Our goal here is to go over designing guides for a tiling screen on positive genes.  We'll design CRISPR guide libraries for the top genes in the screen.  First we'll go over how to do one gene and then extend the method to other genes.
+
+Several studies have shown improved interference and activation with FANTOM5 annotated TSS's.  We shall do the same.  TSS information was downloaded from http://biomart.gsc.riken.jp/ and lifted over to mm10 using the UCSC liftover tool (https://genome.ucsc.edu/cgi-bin/hgLiftOver).
+
+```{r}
+setwd("~/sgRNA/sgRNAdesign/")
+genes = scan("~/sgRNA/Yanxia/genes4tilingscreen.txt", what = character())
+FANTOM5mm10TSSannotation = read.table(file = "~/sgRNA/sgRNAdesign/mm10TSSliftover.bed")
+head(FANTOM5mm10TSSannotation)
+Top2TSSs = c()
+```
+```{r}
+for(gene in genes){
+  Top2TSSs = rbind(Top2TSSs, FANTOM5mm10TSSannotation[grep(paste0("p1@", gene, ","), FANTOM5mm10TSSannotation[,4]),])
+  Top2TSSs = rbind(Top2TSSs, FANTOM5mm10TSSannotation[grep(paste0("p2@", gene, ","), FANTOM5mm10TSSannotation[,4]),])
+}
+Top2TSSs
+```
+```{r}
+Top2TSSs = data.frame( chr = Top2TSSs[,1], TSS = apply(Top2TSSs[,c(2,3)], 1, mean), strand = sapply(Top2TSSs[,6], function(x) if(x == "+"){return(1)} else{ return(-1)} ), 
+                       gene = sapply(Top2TSSs[,4], function(x) sub(".*@", "", gsub("\\,.*","", x))))
+Top2TSSs
+chr = Top2TSSs$chr[-which(duplicated(Top2TSSs$gene))]
+strand = Top2TSSs$strand[-which(duplicated(Top2TSSs$gene))]
+genes = Top2TSSs$gene[-which(duplicated(Top2TSSs$gene))]
+start = rep(0, times = length(genes))
+end = rep(0, times = length(genes))
+l = 10000
+for(i in 1:length(genes)){
+  if(strand[i] == 1){
+    start[i] = min(Top2TSSs$TSS[which(Top2TSSs$gene == genes[i])])
+    end[i] = start[i] - l
+  }
+  else{
+    start[i] = max(Top2TSSs$TSS[which(Top2TSSs$gene == genes[i])])
+    end[i] = start[i] + l
+  }
+}
+
+target.regions = data.frame(chr = chr, 
+                            strand = sapply(strand, function(x) if(x == 1){return("+")} else{return("-")}),
+                            gene = genes,
+                            start = start,
+                            end = end)
+target.regions = data.frame(chr = target.regions$chr, strand = target.regions$strand, gene = target.regions$gene, start = apply(target.regions[ ,c("start", "end")], 1, min), end = apply(target.regions[ ,c("start", "end")], 1, max)) 
+target.regions
+```
+
+We'll take a look at these in the genome browser.
+
+### Nov
+
+![Nov promoter](promoter_figures/NovPromoter.png)
+
+This promoter looks very safe to target.
+
+### Esrrb
+
+![Esrrb promoter](promoter_figures/EsrrbPromoter.png)
+
+Safe to target.
+
+### Bcl6 
+
+![Bcl6 promoter](promoter_figures/Bcl6Promoter.png)
+
+Safe to target.
+
+### Etv2
+
+![Etv2 promoter](promoter_figures/Etv2Promoter.png)
+
+This one is problematic, but not fully.  Rbm42 and Haus5 run on the opposite strand, so we can probably target up to the TTS of these genes (30650317 and 30664994, respectively).
+
+### Lhx1
+
+![Lhx1 promoter](promoter_figures/Lhx1Promoter.png)
+
+There is a lncRNA on the opposite strand (Lhx1os with TSS 84525660).  If we target further upstream of this, we should be fine.  We should also check the distribution of the guides to ensure that the effect is not due to Lhx1os.
+
+
+### Hsf2
+
+![Hsf2 promoter](promoter_figures/Hsf2Promoter.png)
+
+Again, we have the same issue.  We have to target further upstream to the TSS of 4930467K11Rik (57,486,351).
+
+### Sox2 
+
+![Sox2 promoter](promoter_figures/Sox2Promoter.png)
+
+Again a lncRNA is nearby, but this time on the same strand as the gene.  We can target downstream of the TSS of Sox2ot (34,638,174) to ensure we are targetting Sox2.
+
+### Isl2
+
+![Isl2 promoter](promoter_figures/Isl2Promoter.png)
+
+There is a gene in the opposite direction of Isl2, Etfa (TSS: 55,512,243).  We will have to target about 5kb in the opposite direction to ensure we're not targetting Etfa.
+
+### Aes
+
+![Aes promoter](promoter_figures/AesPromoter.png)
+
+Again, there's a gene in the opposite direction, Gna11 (TSS: 81,545,190).  We'll have to do the same as above.
+
+
+### Hey2
+
+![Hey2 promoter](promoter_figures/Hey2Promoter.png)
+
+This gene looks safe to target.
+
+### Nobox
+
+![Nobox promoter](promoter_figures/NoboxPromoter.png)
+
+This gene looks safe to target.
+
+### Sox1
+
+![Sox1 promoter](promoter_figures/Sox1Promoter.png)
+
+There is a predicted gene with a TSS upstream of the TSS, but I'm not sure how much we have to do about this.
+
+### Gata6
+
+![Gata6 promoter](promoter_figures/Gata6Promoter.png)
+
+There are lncRNAs in the opposite direction that we may have to worry about.  1010001N08Rik with TSS at 11,052,567.  
+
+### Spdef
+
+![Spdef promoter](promoter_figures/SpdefPromoter.png)
+
+There is a gene nearby, but it runs in the same direction as Spdef, so I don't think there's much we have to worry about as long as we don't target in the gene (D17Wsu92e with TSS 27,751,232).
+
+### Hoxc11
+
+![Hoxc11 promoter](promoter_figures/Hoxc11Promoter.png)
+
+There a whole mess here.  If we target Hoxc11, we might also target Hotair.  I don't know if we should even include this gene.
+
+### Pou5f1
+
+![Pou5f1 promoter](promoter_figures/Pou5f1Promoter.png)
+
+The only gene nearby is Tcf19, but this runs in the opposite direction so I don't think we have to worry about this.
+
+### Mlxip
+
+![Mlxip promoter](promoter_figures/MlxipPromoter.png)
+
+There is a gene running in the opposite direction Bcl7a with TTS 123,374,992.
+
+### Atoh1
+
+![Atoh1 promoter](promoter_figures/Atoh1Promoter.png)
+
+This gene looks fine.
+
+### Tfeb
+
+![Tfeb promoter](promoter_figures/TfebPromoter.png)
+
+This gene looks problematic.  The promoter for Pgc (TSS: 47,734,482) essentially overlaps with Tfeb.  This gene will have to be verified.  
+
+### Gata1
+
+![Gata1 promoter](promoter_figures/Gata1Promoter.png)
+
+This gene looks good.
+
+### Lmx1a
+
+![Lmx1a promoter](promoter_figures/Lmx1aPromoter.png)
+
+This gene looks good.
+
+### Klf5
+
+![Klf5 promoter](promoter_figures/Klf5Promoter.png)
+
+This gene looks good.
+
+### Gata4
+
+![Gata4 promoter](promoter_figures/Gata4Promoter.png)
+
+This gene looks good.
+
+### Klf2
+
+![Klf2 promoter](promoter_figures/Klf2Promoter.png)
+
+There is a pseudogene in the opposite direction that we may have to worry about.  Gm10282 has a TSS at 72,305,260, so we will have to limit ourselves to about 5kb away from this.
+
+### Tfcp2l1
+
+![Tfcp2l1 promoter](promoter_figures/Tfcp2l1Promoter.png)
+
+Again a problem here.  We will have to limit ourselves to the TSS of Clasp1 (118,612,678).  
+
+### Klf4
+
+![Klf4 promoter](promoter_figures/Klf4Promoter.png)
+
+There is a predicted gene about 20Kb from the TSS of Klf4.  We should be relatively safe, but to be sure we can target up to 5kb from the TSS of Gm12511 (55,563,265).
+
+### Nanog
+
+![Nanog promoter](promoter_figures/NanogPromoter.png)
+
+This gene is safe.
+
+
+### modifying the target regions accordingly 
+
+```{r}
+target.regions$start[which(target.regions$gene == "Lhx1")] = max(c(84525660 + 200, target.regions$start[which(target.regions$gene == "Lhx1")]))  # avoid lncRNA on opposite strand
+target.regions$end[which(target.regions$gene == "Etv2")] = min(c(target.regions$end[which(target.regions$gene == "Etv2")], 30650317 - 200, 30664994 - 200))  # avoid end of genes on same strand
+target.regions$end[which(target.regions$gene == "Hsf2")] = min(c(target.regions$end[which(target.regions$gene == "Hsf2")], 57486351 - 200)) # avoid lncRNA on opposite strand
+target.regions$start[which(target.regions$gene == "Sox2")] = max(c(target.regions$start[which(target.regions$gene == "Sox2")], 34638174 + 200)) # avoid lncRNA upstream on same strand
+target.regions$start[which(target.regions$gene == "Isl2")] = target.regions$end[which(target.regions$gene == "Isl2")] - 5000  # avoid gene upstream on opposite strand
+target.regions$start[which(target.regions$gene == "Aes")] = target.regions$end[which(target.regions$gene == "Aes")] - 5000  # avoid genes upstream on opposite strand
+```
+
+# Designing guides.
+
+```{r eval=FALSE}
+library(Biostrings)
+library(GenomicRanges)
+target.region.gr = GRanges(target.region$chr, IRanges(start = min(c(target.region$start, target.region$end)), end = max(c(target.region$start, target.region$end))), strand = target.region$strand)
+library(BSgenome.Mmusculus.UCSC.mm10)
+target.seq = getSeq(BSgenome.Mmusculus.UCSC.mm10, target.region.gr)
+target.seq
+pam = "GG"
+pam.matches = vmatchPattern(pam, target.seq, max.mismatch = 0)
+length(pam.matches[[1]])
+head(pam.matches)
+pam.reverse = "CC"
+pam.reverse.matches = vmatchPattern(pam.reverse, target.seq, max.mismatch = 0)
+length(pam.reverse.matches[[1]])
+head(pam.reverse.matches)
+```
