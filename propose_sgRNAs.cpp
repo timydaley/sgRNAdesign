@@ -90,11 +90,12 @@ std::ostream&
 operator<<(std::ostream& the_stream, const sgRNA &sgrna){
 
   the_stream << "sgRNA: " << sgrna.seq << endl;
-  the_stream << "matches: " << endl;
-  for(size_t i = 0; i < sgrna.matches.size(); i++){
-    the_stream << sgrna.matches[i] << endl;
+  if(sgrna.matches.size() > 0){
+    the_stream << "matches: " << endl;
+    for(size_t i = 0; i < sgrna.matches.size(); i++){
+      the_stream << sgrna.matches[i] << endl;
+    }
   }
-  
   
   return the_stream;
 }
@@ -368,7 +369,7 @@ propose_sgRNAs(const bool VERBOSE,
     for(size_t i = 0; i < region_seq.size() - len_sgRNA - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq == rev_PAM){
-        possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA),
+        possible_sgRNAs.push_back(sgRNA(reverse_complement(region_seq.substr(i + PAM_len, len_sgRNA)),
                                         region_name, true));
       }
     }
@@ -398,7 +399,7 @@ propose_sgRNAs(const bool VERBOSE,
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq.find_first_of("N") == std::string::npos){
         if(wildcard_seq_match(test_seq.c_str(), rev_PAM.c_str())){
-          possible_sgRNAs.push_back(sgRNA(region_seq.substr(i, len_sgRNA),
+          possible_sgRNAs.push_back(sgRNA(reverse_complement(region_seq.substr(i + PAM_len, len_sgRNA)),
                                           region_name, true));
           ++n_rev_comp;
         }
@@ -584,10 +585,7 @@ write_guides(const string output_file_name,
   
   for(size_t i = 0; i < possible_sgRNAs.size(); i++){
     string seq;
-    if(possible_sgRNAs[i].rev_comp)
-      seq = reverse_complement(possible_sgRNAs[i].seq);
-    else
-      seq = possible_sgRNAs[i].seq;
+    seq = possible_sgRNAs[i].seq;
       
     out << ">" << possible_sgRNAs[i].target_name << endl;
     out << seq << endl;
