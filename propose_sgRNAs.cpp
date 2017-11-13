@@ -34,6 +34,8 @@
 #include <iostream>
 #include <sstream>
 #include <algorithm>
+#include <iterator>
+#include <cstdlib>
 
 
 
@@ -54,6 +56,7 @@ using std::cerr;
 using std::tr1::unordered_multimap;
 using std::tr1::unordered_map;
 using std::strcmp;
+using std::atoi;
 
 
 struct sgRNA {
@@ -66,6 +69,11 @@ struct sgRNA {
     {seq = s; key = k; rev_comp = rc; to_delete = false;}
   sgRNA(const string s, const string n, const size_t k, const bool rc)
     {seq = s; target_name = n; key = k; rev_comp = rc; to_delete = false;}
+  sgRNA(const string s, const string n, const size_t k, const bool rc, const int p)
+    {seq  = s; target_name = n; key = k; rev_comp = rc; pos = p; to_delete = false;}
+  sgRNA(const string s, const string n, const bool rc, const int p, const string chr)
+    {seq  = s; target_name = n; rev_comp = rc; pos = p; chrom = chr; to_delete = false;}
+
 
   
   string seq;
@@ -73,6 +81,8 @@ struct sgRNA {
   int key;
   bool rev_comp;
   bool to_delete;
+  int pos;
+  string chrom;
   vector<MappedRead> matches;
 };
 
@@ -276,10 +286,28 @@ read_seqs(const string &input_file_name,
 }
 
 
+template<typename Out>
+void split(const std::string &s, char delim, Out result) {
+  std::stringstream ss(s);
+  std::string item;
+  while (std::getline(ss, item, delim)) {
+    *(result++) = item;
+  }
+}
+
+
+void
+split(const std::string &s, char delim, vector<string> &result) {
+  std::vector<std::string> elems;
+  split(s, delim, std::back_inserter(elems));
+  result = elems;
+}
+
+
 size_t
 read_fasta_batch(const string &input_file_name,
                  vector<string> &seqs,
-                 vector<string> &names){
+                 vector< vector<string> > &names){
   std::ifstream in(input_file_name.c_str());
   if (!in) //if file doesn't open
     throw SMITHLABException("could not open input file: " + input_file_name);
@@ -292,7 +320,9 @@ read_fasta_batch(const string &input_file_name,
     std::istringstream is(buffer);
     // > marks the name portions
     if(buffer[0] == '>'){
-      names.push_back(buffer.substr(1, buffer.length() - 1));
+      vector<string> name;
+      split(buffer.substr(1, buffer.length() - 1), '\t', name);
+      names.push_back(name);
       // first one do nothing, otherwise append the current sequence
       if(line_count > 1){
         seqs.push_back(current_seq);
@@ -341,7 +371,7 @@ void
 propose_sgRNAs(const bool VERBOSE,
                const string PAM,
                const string region_seq,
-               const string region_name,
+               const vector<string> &region_name,
                const size_t len_sgRNA,
                size_t &n_forward,
                size_t &n_rev_comp,
@@ -363,14 +393,17 @@ propose_sgRNAs(const bool VERBOSE,
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq == PAM){
         possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA),
-                                        region_name, false));
+                                        region_name[0], false,
+                                        atoi(region_name[2].c_str()) + i - len_sgRNA,
+                                        region_name[1]));
       }
     }
     for(size_t i = 0; i < region_seq.size() - len_sgRNA - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq == rev_PAM){
         possible_sgRNAs.push_back(sgRNA(reverse_complement(region_seq.substr(i + PAM_len, len_sgRNA)),
-                                        region_name, true));
+                                        region_name[0], true, atoi(region_name[2].c_str()) + i + PAM_len,
+                                        region_name[1]));
       }
     }
   }
@@ -390,7 +423,9 @@ propose_sgRNAs(const bool VERBOSE,
       if(test_seq.find_first_of("N") == std::string::npos){
         if(wildcard_seq_match(test_seq.c_str(), PAM.c_str())){
           possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA),
-                                          region_name, false));
+                                          region_name[0], false,
+                                          atoi(region_name[2].c_str()) + i - len_sgRNA,
+                                          region_name[1]));
           ++n_forward;
         }
       }
@@ -400,7 +435,8 @@ propose_sgRNAs(const bool VERBOSE,
       if(test_seq.find_first_of("N") == std::string::npos){
         if(wildcard_seq_match(test_seq.c_str(), rev_PAM.c_str())){
           possible_sgRNAs.push_back(sgRNA(reverse_complement(region_seq.substr(i + PAM_len, len_sgRNA)),
-                                          region_name, true));
+                                          region_name[0], true, atoi(region_name[2].c_str()) + i + PAM_len,
+                                          region_name[1]));
           ++n_rev_comp;
         }
       }
@@ -587,7 +623,14 @@ write_guides(const string output_file_name,
     string seq;
     seq = possible_sgRNAs[i].seq;
       
-    out << ">" << possible_sgRNAs[i].target_name << endl;
+    out << "> " << possible_sgRNAs[i].target_name << '\t'
+        << possible_sgRNAs[i].chrom << '\t'
+        << possible_sgRNAs[i].pos << '\t';
+    if(possible_sgRNAs[i].rev_comp)
+      out << "-";
+    else
+      out << "+";
+    out<< endl;
     out << seq << endl;
   }
 }
@@ -604,8 +647,8 @@ main(const int argc, const char **argv) {
     string genome_file_name;
     string output_file_name;
     string PAM_seq = "NGG";
-    double gc_content_lower_bound = 0.2;
-    double gc_content_upper_bound = 0.8;
+    double gc_content_lower_bound = 0.1;
+    double gc_content_upper_bound = 0.9;
     bool VERBOSE = false;
     bool REMOVE_DUPLICATES = false;
     bool REMOVE_TRINUCLEOTIDES = false;
@@ -665,23 +708,31 @@ main(const int argc, const char **argv) {
     if(VERBOSE){
       cerr << "PAM = " << PAM_seq << endl;
     }
-    vector<string> seqs, names;
+    vector<string> seqs;
+    vector< vector<string> > names;
     size_t n_seqs = read_fasta_batch(input_file_name, seqs, names);
-    
+    assert(names.size() == seqs.size());
     if(VERBOSE){
-      cerr << "sequences read in: " << n_seqs << endl;
-  
-      for(size_t i = 0; i < min(seqs.size(), names.size()); i++){
-        cerr << names[i] << endl;
-        cerr << seqs[i] << endl;
+      cerr << "number of seqs read in = " << n_seqs << endl;
+      cerr << "names = " << endl;
+      for(size_t i = 0; i < names.size(); i++){
+        for(size_t j = 0; j < names[i].size(); j++){
+          cerr << names[i][j] << '\t';
+        }
+        cerr << endl;
+//cerr << names[i][0] << '\t' << atoi(names[i][2].c_str()) << '\t'
+//            << atoi(names[i][3].c_str()) << '\t' << names[i][1] << endl;
       }
+      cerr << "proposing guides" << endl;
     }
     
     vector<sgRNA> possible_sgRNAs;
     size_t n_forward = 0;
     size_t n_rev_comp = 0;
-    for(size_t i = 0; i < seqs.size(); i++)
+    for(size_t i = 0; i < seqs.size(); i++){
+      cerr << "seq " << i + 1 << endl;
       propose_sgRNAs(false, PAM_seq, seqs[i], names[i], len_sgRNA, n_forward, n_rev_comp, possible_sgRNAs);
+    }
  
     cerr << "# possible sgRNAs = " << possible_sgRNAs.size() << endl;
     /*
