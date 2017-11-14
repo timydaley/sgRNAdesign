@@ -24,22 +24,22 @@ for(gene in genes){
 Top2TSSs
 ```
 ```{r}
-Top2TSSs = data.frame( chr = Top2TSSs[,1], TSS = apply(Top2TSSs[,c(2,3)], 1, mean), strand = sapply(Top2TSSs[,6], function(x) if(x == "+"){return(1)} else{ return(-1)} ), 
+Top2TSSs = data.frame( chr = Top2TSSs[,1], TSS = apply(Top2TSSs[,c(2, 3, 6)], 1, function(x) if(x[3] == "+"){return(x[1])} else{return(x[2])}), strand = sapply(Top2TSSs[,6], function(x) if(x == "+"){return(1)} else{ return(-1)} ), 
                        gene = sapply(Top2TSSs[,4], function(x) sub(".*@", "", gsub("\\,.*","", x))))
-Top2TSSs
+Top2TSSs$TSS = as.numeric(levels(Top2TSSs$TSS))[Top2TSSs$TSS]
 chr = Top2TSSs$chr[-which(duplicated(Top2TSSs$gene))]
 strand = Top2TSSs$strand[-which(duplicated(Top2TSSs$gene))]
 genes = Top2TSSs$gene[-which(duplicated(Top2TSSs$gene))]
 start = rep(0, times = length(genes))
 end = rep(0, times = length(genes))
-l = 10000
+l = 35000
 for(i in 1:length(genes)){
   if(strand[i] == 1){
-    start[i] = min(Top2TSSs$TSS[which(Top2TSSs$gene == genes[i])])
+    start[i] = max(Top2TSSs$TSS[which(Top2TSSs$gene == genes[i])]) + 500
     end[i] = start[i] - l
   }
   else{
-    start[i] = max(Top2TSSs$TSS[which(Top2TSSs$gene == genes[i])])
+    start[i] = min(Top2TSSs$TSS[which(Top2TSSs$gene == genes[i])]) - 500
     end[i] = start[i] + l
   }
 }
@@ -49,6 +49,14 @@ target.regions = data.frame(chr = chr,
                             gene = genes,
                             start = start,
                             end = end)
+target.regions
+target.regions$start[which(target.regions$gene == "Esrrb")] = min(Top2TSSs$TSS[which(Top2TSSs$gene == "Esrrb")]) - l
+target.regions$end[which(target.regions$gene == "Esrrb")] = max(Top2TSSs$TSS[which(Top2TSSs$gene == "Esrrb")])
+target.regions$start[which(target.regions$gene == "Gata4")] = min(Top2TSSs$TSS[which(Top2TSSs$gene == "Gata4")])
+target.regions$end[which(target.regions$gene == "Gata4")] = max(Top2TSSs$TSS[which(Top2TSSs$gene == "Gata4")]) + l
+  
+target.regions
+
 target.regions = data.frame(chr = target.regions$chr, strand = target.regions$strand, gene = target.regions$gene, start = apply(target.regions[ ,c("start", "end")], 1, min), end = apply(target.regions[ ,c("start", "end")], 1, max)) 
 target.regions
 ```
@@ -205,7 +213,7 @@ There is a pseudogene in the opposite direction that we may have to worry about.
 
 ![Tfcp2l1 promoter](promoter_figures/Tfcp2l1Promoter.png)
 
-Again a problem here.  We will have to limit ourselves to the TSS of Clasp1 (118,612,678).  
+Again a problem here.  We will have to limit ourselves to the TTS of Clasp1 (118,612,678).  
 
 ### Klf4
 
@@ -223,29 +231,81 @@ This gene is safe.
 ### modifying the target regions accordingly 
 
 ```{r}
-target.regions$start[which(target.regions$gene == "Lhx1")] = max(c(84525660 + 200, target.regions$start[which(target.regions$gene == "Lhx1")]))  # avoid lncRNA on opposite strand
-target.regions$end[which(target.regions$gene == "Etv2")] = min(c(target.regions$end[which(target.regions$gene == "Etv2")], 30650317 - 200, 30664994 - 200))  # avoid end of genes on same strand
-target.regions$end[which(target.regions$gene == "Hsf2")] = min(c(target.regions$end[which(target.regions$gene == "Hsf2")], 57486351 - 200)) # avoid lncRNA on opposite strand
-target.regions$start[which(target.regions$gene == "Sox2")] = max(c(target.regions$start[which(target.regions$gene == "Sox2")], 34638174 + 200)) # avoid lncRNA upstream on same strand
+target.regions$start[which(target.regions$gene == "Lhx1")] = max(c(84525660 + 500, target.regions$start[which(target.regions$gene == "Lhx1")]))  # avoid lncRNA on opposite strand
+target.regions$end[which(target.regions$gene == "Etv2")] = min(c(target.regions$end[which(target.regions$gene == "Etv2")], 30650317 - 500, 30664994 - 500))  # avoid end of genes on same strand
+target.regions$end[which(target.regions$gene == "Hsf2")] = min(c(target.regions$end[which(target.regions$gene == "Hsf2")], 57486351 - 500)) # avoid lncRNA on opposite strand
+target.regions$start[which(target.regions$gene == "Sox2")] = max(c(target.regions$start[which(target.regions$gene == "Sox2")], 34638174 + 500)) # avoid lncRNA upstream on same strand
 target.regions$start[which(target.regions$gene == "Isl2")] = target.regions$end[which(target.regions$gene == "Isl2")] - 5000  # avoid gene upstream on opposite strand
 target.regions$start[which(target.regions$gene == "Aes")] = target.regions$end[which(target.regions$gene == "Aes")] - 5000  # avoid genes upstream on opposite strand
+target.regions = target.regions[-which(target.regions$gene == "Gata6"), ] # Gata6 is a problem
+target.regions$end[which(target.regions$gene == "Spdef")] = min(c(target.regions$end[which(target.regions$gene == "Spdef")], 27751232 - 500))  #there is predicted gene upstream of Spdef
+target.regions = target.regions[-which(target.regions$gene == "Hoxc11"), ] # Hoxc11 is a problem
+target.regions$start[which(target.regions$gene == "Mlxip")] = max(c(target.regions$start[which(target.regions$gene == "Mlxip")], 123374992 + 500))  # gene upstream of Mlxip
+target.regions = target.regions[-which(target.regions$gene == "Tfeb"), ] # Tfeb is a problem
+target.regions$start[which(target.regions$gene == "Klf2")] = max(c(target.regions$start[which(target.regions$gene == "Klf2")], 72305260 + 5000))
+target.regions$start[which(target.regions$gene == "Tfcp2l1")] = max(c(target.regions$start[which(target.regions$gene == "Tfcp2l1")], 118612678))
+target.regions$end[which(target.regions$gene == "Klf4")] = min(c(target.regions$end[which(target.regions$gene == "Klf4")], 55563265 - 5000))
+target.regions$gene = factor(target.regions$gene, levels = unique(target.regions$gene))
+target.regions
 ```
+
+# Overlap with enhancer regions
+
+```{r}
+mouse_enhancer_mESC = read.table(file = "mouse_enhancer_mESC.txt", col.names = c("chr", "start", "end", "cell.Type", "strand"))
+hist(mouse_enhancer_mESC$end - mouse_enhancer_mESC$start, breaks = 100)
+library(GenomicRanges)
+target.regions.gr = with(target.regions, GRanges(chr, IRanges(start, end), id=gene, strand = strand))
+head(target.regions.gr)
+mouse_enhancer_mESC.gr = with(mouse_enhancer_mESC, GRanges(chr, IRanges(start, end)))
+overlap = mergeByOverlaps(mouse_enhancer_mESC.gr, target.regions.gr)
+length(overlap$id)
+head(overlap)
+overlap$id
+#sapply(overlap, width)
+```
+
+
 
 # Designing guides.
 
-```{r eval=FALSE}
+```{r}
 library(Biostrings)
-library(GenomicRanges)
-target.region.gr = GRanges(target.region$chr, IRanges(start = min(c(target.region$start, target.region$end)), end = max(c(target.region$start, target.region$end))), strand = target.region$strand)
 library(BSgenome.Mmusculus.UCSC.mm10)
-target.seq = getSeq(BSgenome.Mmusculus.UCSC.mm10, target.region.gr)
-target.seq
-pam = "GG"
-pam.matches = vmatchPattern(pam, target.seq, max.mismatch = 0)
-length(pam.matches[[1]])
-head(pam.matches)
-pam.reverse = "CC"
-pam.reverse.matches = vmatchPattern(pam.reverse, target.seq, max.mismatch = 0)
-length(pam.reverse.matches[[1]])
-head(pam.reverse.matches)
+mm10 = BSgenome.Mmusculus.UCSC.mm10
+target.seqs = getSeq(mm10, target.regions.gr)
+head(target.seqs)
+```
+```{r}
+library(seqinr);
+wanted_seqs = list(genes = target.regions$gene, 
+                   seqs = sapply(target.seqs, toString), 
+                   chr = target.regions$chr,
+                   start = target.regions$start, 
+                   end = target.regions$end, 
+                   strand = target.regions$strand)
+```
+```{r}
+write_seqs <- function(seqs, gene_names, chrom, start_pos, end_pos, strand, filename){
+	stopifnot(dim(seqs)[1] == length(gene_names))
+	write.fasta(file.out = filename, sequences = seqs[1], names = paste0(gene_names[1], "\t", chrom[1], "\t", start_pos[1], "\t", end_pos[1], "\t", strand[1]), open = "w", nbchar = 80, as.string = TRUE)
+	if(length(gene_names) > 1){
+	    for(i in 2:length(gene_names)){
+	        write.fasta(file.out = filename, sequences = seqs[i], names = paste0(gene_names[i], "\t", chrom[i], "\t", start_pos[i], "\t", end_pos[i], "\t", strand[i]), open = "a", nbchar = 80, as.string = TRUE)
+	   	}
+  }
+}
+write_seqs(wanted_seqs$seqs, wanted_seqs$genes, wanted_seqs$chr, round(wanted_seqs$start), round(wanted_seqs$end), wanted_seqs$strand, "tiling_screen_promoters.fa")
+write.table(wanted_seqs$genes, file = "genes.txt", sep = "\n", col.names = FALSE, row.names = FALSE, quote = FALSE)
+```
+
+```{r engine='bash'}
+~/sgRNA/sgRNAdesign/propose_sgRNAs -i tiling_screen_promoters.fa -V -R -T -c ~/sgRNA/Meng/guide\ design/enzyme_cutting_seqs.txt -o tiling_guides.fa
+while read gene; do
+n_lines="$(grep ${gene} tiling_guides.txt | wc -l)";
+printf "%s\t%s\n" "${gene}" "${n_lines}";
+done < genes.txt
+
+wc -l tiling_guides.fa
+head tiling_guides.fa
 ```
