@@ -494,6 +494,7 @@ remove_duplicate_sgRNAs(const bool VERBOSE,
 }
 
 
+
 // need to remove constant tri nucleotides
 // from the sgRNAs, but not the PAM
 void
@@ -580,6 +581,18 @@ remove_enzyme_cut_seqs(const bool VERBOSE,
     // otherwise need to set it manually
     if(!match_found)
       i++;
+  }
+}
+
+void
+add_g_for_U6promoter(vector<sgRNA> &possible_sgRNAs){
+  for(size_t i = 0; i < possible_sgRNAs.size(); i++){
+    string sgRNAseq = possible_sgRNAs[i].seq;
+    if(sgRNAseq[0] != 'G'){
+      sgRNAseq.insert(0, "G");
+      possible_sgRNAs[i].seq = sgRNAseq;
+    }
+    // else do nothing
   }
 }
 
@@ -784,6 +797,8 @@ main(const int argc, const char **argv) {
     gc_correction(VERBOSE, len_sgRNA, PAM_seq.size(),
                   gc_content_lower_bound, gc_content_upper_bound,
                   possible_sgRNAs);
+    
+    add_g_for_U6promoter(possible_sgRNAs);
     
     if(VERBOSE)
       cerr << "# possible sgRNAs after removing GC rich and poor guides = "
