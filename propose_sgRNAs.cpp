@@ -381,6 +381,10 @@ propose_sgRNAs(const bool VERBOSE,
   string rev_PAM = reverse_complement(PAM);
 
   const size_t PAM_len = PAM.size();
+  const string chrom = region_name[0];
+  const int start = atoi(region_name[1].c_str());
+  const int end = atoi(region_name[2].c_str());
+  const string gene = region_name[3];
   
   // test for wildcards
   size_t first_wildcard_pos = PAM.find_first_not_of("ACGT");
@@ -391,19 +395,19 @@ propose_sgRNAs(const bool VERBOSE,
     // no wildcards, just do simple matching
     for(size_t i = len_sgRNA; i < region_seq.size() - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
+      
       if(test_seq == PAM){
         possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA),
-                                        region_name[0], false,
-                                        atoi(region_name[2].c_str()) + i - len_sgRNA,
-                                        region_name[1]));
+                                        gene, false,
+                                        start + i - len_sgRNA,
+                                        chrom));
       }
     }
     for(size_t i = 0; i < region_seq.size() - len_sgRNA - PAM_len; i++){
       string test_seq = region_seq.substr(i, PAM_len);
       if(test_seq == rev_PAM){
         possible_sgRNAs.push_back(sgRNA(reverse_complement(region_seq.substr(i + PAM_len, len_sgRNA)),
-                                        region_name[0], true, atoi(region_name[2].c_str()) + i + PAM_len,
-                                        region_name[1]));
+                                        gene, true, start + i + PAM_len, chrom));
       }
     }
   }
@@ -423,9 +427,9 @@ propose_sgRNAs(const bool VERBOSE,
       if(test_seq.find_first_of("N") == std::string::npos){
         if(wildcard_seq_match(test_seq.c_str(), PAM.c_str())){
           possible_sgRNAs.push_back(sgRNA(region_seq.substr(i - len_sgRNA, len_sgRNA),
-                                          region_name[0], false,
-                                          atoi(region_name[2].c_str()) + i - len_sgRNA,
-                                          region_name[1]));
+                                          gene, false,
+                                          start + i - len_sgRNA,
+                                          chrom));
           ++n_forward;
         }
       }
@@ -435,8 +439,7 @@ propose_sgRNAs(const bool VERBOSE,
       if(test_seq.find_first_of("N") == std::string::npos){
         if(wildcard_seq_match(test_seq.c_str(), rev_PAM.c_str())){
           possible_sgRNAs.push_back(sgRNA(reverse_complement(region_seq.substr(i + PAM_len, len_sgRNA)),
-                                          region_name[0], true, atoi(region_name[2].c_str()) + i + PAM_len,
-                                          region_name[1]));
+                                          gene, true, start + i + PAM_len, chrom));
           ++n_rev_comp;
         }
       }
@@ -521,6 +524,39 @@ remove_trinucleotides(const bool VERBOSE,
       i = possible_sgRNAs.erase(i);
     }
     else if(sgRNAseq.find(ttt) != std::string::npos){
+      i = possible_sgRNAs.erase(i);
+    }
+    else
+      i++;
+  }
+}
+
+// need to remove constant quad nucleotides
+// from the sgRNAs, but not the PAM
+void
+remove_quadnucleotides(const bool VERBOSE,
+                      const size_t len_sgRNA,
+                      const size_t PAM_len,
+                      vector<sgRNA> &possible_sgRNAs){
+  const string aaaa = "AAAA";
+  const string cccc = "CCCC";
+  const string gggg = "GGGG";
+  const string tttt = "TTTT";
+  for(vector<sgRNA>::iterator i = possible_sgRNAs.begin();
+      i != possible_sgRNAs.end();){
+    string sgRNAseq = (*i).seq;
+    
+    // now look for trinucleotides
+    if(sgRNAseq.find(aaaa) != std::string::npos){
+      i = possible_sgRNAs.erase(i);
+    }
+    else if(sgRNAseq.find(cccc) != std::string::npos){
+      i = possible_sgRNAs.erase(i);
+    }
+    else if(sgRNAseq.find(gggg) != std::string::npos){
+      i = possible_sgRNAs.erase(i);
+    }
+    else if(sgRNAseq.find(tttt) != std::string::npos){
       i = possible_sgRNAs.erase(i);
     }
     else
@@ -654,7 +690,7 @@ main(const int argc, const char **argv) {
   
   try {
     // option variables
-    size_t edit_dist = 2;
+//    size_t edit_dist = 2;
     size_t len_sgRNA = 20;
     string input_file_name;
     string genome_file_name;
@@ -665,6 +701,7 @@ main(const int argc, const char **argv) {
     bool VERBOSE = false;
     bool REMOVE_DUPLICATES = false;
     bool REMOVE_TRINUCLEOTIDES = false;
+    bool REMOVE_QUADNUCLEOTIDES = false;
     string enzyme_cut_seq_names;
     
     /********** GET COMMAND LINE ARGUMENTS  FOR C_CURVE ***********/
@@ -672,13 +709,13 @@ main(const int argc, const char **argv) {
                            "", "-i input fasta file of proposed region");
     opt_parse.add_opt("output", 'o', "output file",
                       false , output_file_name);
-    opt_parse.add_opt("edit_distance", 'd', "maximum edit distance for matches"
-                      " (default: " + toa(edit_dist) + ")",
-                      false, edit_dist);
+//    opt_parse.add_opt("edit_distance", 'd', "maximum edit distance for matches"
+//                      " (default: " + toa(edit_dist) + ")",
+//                      false, edit_dist);
     opt_parse.add_opt("PAM", 'P', "PAM sequence (default: "
                       + PAM_seq + ")",
                       false, PAM_seq);
-    opt_parse.add_opt("length", 'l', "length of sgRNAs (default: "
+    opt_parse.add_opt("length", 's', "length of sgRNAs (default: "
                       + toa(len_sgRNA) + ")",
                       false, len_sgRNA);
     opt_parse.add_opt("gc_upper", 'u', "upper bound for GC content of sgRNAs"
@@ -696,6 +733,8 @@ main(const int argc, const char **argv) {
                       false, REMOVE_DUPLICATES);
     opt_parse.add_opt("REMOVE_TRINUCLEOTIDES", 'T', "remove constant trinucleotides "
                       "(aaa, ccc, ggg, ttt)", false, REMOVE_TRINUCLEOTIDES);
+    opt_parse.add_opt("REMOVE_QUADNUCLEOTIDES", 'Q', "remove constant quad nucleotides "
+                      "(aaaa, cccc, gggg, tttt)", false, REMOVE_QUADNUCLEOTIDES);
     opt_parse.add_opt("cut_seqs", 'c', "filename of enzyme cutting sequences to remove",
                       false, enzyme_cut_seq_names);
     
@@ -744,7 +783,9 @@ main(const int argc, const char **argv) {
     size_t n_rev_comp = 0;
     for(size_t i = 0; i < seqs.size(); i++){
       cerr << "seq " << i + 1 << endl;
-      propose_sgRNAs(false, PAM_seq, seqs[i], names[i], len_sgRNA, n_forward, n_rev_comp, possible_sgRNAs);
+      if(seqs[i].length() > len_sgRNA + PAM_seq.length()){
+        propose_sgRNAs(false, PAM_seq, seqs[i], names[i], len_sgRNA, n_forward, n_rev_comp, possible_sgRNAs);
+      }
     }
  
     cerr << "# possible sgRNAs = " << possible_sgRNAs.size() << endl;
@@ -773,6 +814,15 @@ main(const int argc, const char **argv) {
       if(VERBOSE)
         cerr << "# possible sgRNAs after removing trinucleotides = "
              << possible_sgRNAs.size() << endl;
+    }
+    else if(REMOVE_QUADNUCLEOTIDES){
+      if(VERBOSE)
+        cerr << "removing sgRNAs with constant quadnucleotides" << endl;
+      remove_quadnucleotides(VERBOSE, len_sgRNA, PAM_seq.size(), possible_sgRNAs);
+      if(VERBOSE)
+        cerr << "# possible sgRNAs after removing trinucleotides = "
+        << possible_sgRNAs.size() << endl;
+
     }
     if(!(enzyme_cut_seq_names.empty())){
       if(VERBOSE)

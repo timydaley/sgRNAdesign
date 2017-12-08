@@ -288,10 +288,10 @@ wanted_seqs = list(genes = target.regions$gene,
 ```{r}
 write_seqs <- function(seqs, gene_names, chrom, start_pos, end_pos, strand, filename){
 	stopifnot(dim(seqs)[1] == length(gene_names))
-	write.fasta(file.out = filename, sequences = seqs[1], names = paste0(gene_names[1], "\t", chrom[1], "\t", start_pos[1], "\t", end_pos[1], "\t", strand[1]), open = "w", nbchar = 80, as.string = TRUE)
+	write.fasta(file.out = filename, sequences = seqs[1], names = paste0(chrom[1], "\t", start_pos[1], "\t", end_pos[1], "\t", gene_names[1], "\t", strand[1]), open = "w", nbchar = 80, as.string = TRUE)
 	if(length(gene_names) > 1){
 	    for(i in 2:length(gene_names)){
-	        write.fasta(file.out = filename, sequences = seqs[i], names = paste0(gene_names[i], "\t", chrom[i], "\t", start_pos[i], "\t", end_pos[i], "\t", strand[i]), open = "a", nbchar = 80, as.string = TRUE)
+	        write.fasta(file.out = filename, sequences = seqs[i], names = paste0(chrom[i], "\t", start_pos[i], "\t", end_pos[i], "\t", gene_names[i], "\t", strand[1]), open = "a", nbchar = 80, as.string = TRUE)
 	   	}
   }
 }
@@ -299,8 +299,16 @@ write_seqs(wanted_seqs$seqs, wanted_seqs$genes, wanted_seqs$chr, round(wanted_se
 write.table(wanted_seqs$genes, file = "genes.txt", sep = "\n", col.names = FALSE, row.names = FALSE, quote = FALSE)
 ```
 
+
+Xueqiu found some regions that we will want to include, so I will concatenate all of the fastq files to ensure that they don't overlap.
+
 ```{r engine='bash'}
-~/sgRNA/sgRNAdesign/propose_sgRNAs -i tiling_screen_promoters.fa -V -R -T -c ~/sgRNA/Meng/guide\ design/enzyme_cutting_seqs.txt -o tiling_guides.fa
+cat top27escGene_30Kpromoters_mm10_modified100Kb_Klf4Gata6Nanog_tab.fa top27escGene_TSS_FANTOM5_top2_25geneTAD_mm10_Anchors_merged_uniq_tab.fa top27escGene_TSS_FANTOM5_top2_25geneTAD_mm10_RNAPII_Anchors_merged_uniq_tab.fa top27escGene_TSS_FANTOM5_top2_mm10_enhancers_noPromoters_tab.fa tiling_screen_promoters.fa > tiling_screen.fa
+grep chr tiling_screen.fa | cut -c 2- | cut -f 1-4 > tiling_regions.txt
+```
+
+```{r engine='bash'}
+~/sgRNA/sgRNAdesign/propose_sgRNAs -i tiling_screen.fa -V -R -c ~/sgRNA/Meng/guide\ design/enzyme_cutting_seqs.txt -o tiling_guides.fa
 while read gene; do
 n_lines="$(grep ${gene} tiling_guides.txt | wc -l)";
 printf "%s\t%s\n" "${gene}" "${n_lines}";
